@@ -1,0 +1,19 @@
+-- 1. A pipeline is built once, and explain() says what it contains
+profile: concepts v1
+enabled policies: attempt, retry(maxAttempts=1), rate_limit, circuit
+  invocation=synchronous
+  settlement=inline_return_or_throw
+  attempt_timeout=unsupported
+  cancellation=checkpoint_only
+  scheduling=bounded_blocking
+  queue_ownership=none
+  detached_completion=unsupported
+  nonblocking=not_claimed
+  physical_stop=not_guaranteed
+  require_finite_backend_io=false
+-- 2. One operation, several attempts
+succeeded on attempt 3
+attempts: 3, distinct attempt ids: 3
+distinct operation ids: 1 (concepts-1)
+-- 3. A context belongs to one partition
+The execution context partition must equal every selected policy partition.

@@ -1,0 +1,18 @@
+-- 1. Rate limit: three algorithms, same builder call
+token bucket: second call refused with rate.exhausted
+fixed window: second call refused with rate.exhausted
+sliding window: second call refused with rate.exhausted
+-- 2. Bulkhead: at most one operation in flight
+inner call refused with concurrency_capacity_exhausted
+-- 3. Circuit breaker: count window or time window
+call 5 refused with circuit_open; the callable ran 4 times
+time-window circuit compiled: choosing
+-- 4. Retry-After: a wait too long for the policy is returned to you, not slept through
+deferred with retry_after_exceeds_maximum_delay; wait hint present: yes
+the throttling exception is kept as previous: yes
+next operation deferred with cooldown_exceeds_deadline; the callable ran 1 time(s) in total
+-- 5. Fallback: replace failures, and optionally refusals
+business_outcomes_only: second call refused with rate.exhausted
+include_admission_refusals: second call returned 'cached catalog'
+-- 6. Deadline: one budget for the whole operation
+late result replaced by deadline_exceeded

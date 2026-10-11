@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en" dir="ltr" data-root="../">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting started | Reqtide PHP documentation</title>
+<meta name="description" content="Build your first protected call: a retry, a retry budget, a rate limit, a circuit breaker and a total deadline, line by line.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0f5c99">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Getting started | Reqtide PHP documentation">
+<meta property="og:description" content="Build your first protected call: a retry, a retry budget, a rate limit, a circuit breaker and a total deadline, line by line.">
+<meta name="twitter:card" content="summary">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../styles.css">
+<script>try{var t=localStorage.getItem("rt-docs-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+<script defer src="../app.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a><header class="site-header"><div class="shell header-inner"><a class="brand" href="../index.html"><img src="../assets/logo.svg" width="34" height="34" alt=""><span>Reqtide PHP<small>Documentation</small></span></a><nav class="top-nav" aria-label="Primary"><a href="../index.html">Overview</a><a href="../guides/getting-started.html" aria-current="page">Getting started</a><a href="../guides/index.html">All guides</a><a href="../guides/api-reference.html">API reference</a><a href="../guides/faq.html">FAQ</a><a href="https://github.com/ehsanenaloo/reqtide" rel="noopener">GitHub &#8599;</a></nav><div class="header-tools"><span data-search-host></span><button type="button" class="icon-button" data-theme-toggle hidden>Theme</button></div></div></header>
+<main id="main">
+<div class="shell page-intro"><p class="breadcrumbs"><a href="../index.html">Home</a> / <a href="index.html">Guides</a> / Get started</p><h1>Getting started</h1><p class="lead">After this guide you have a working pipeline that retries a flaky call, rate limits it, protects it with a circuit breaker and bounds the whole operation with a deadline, and you know what each line decides.</p><p class="meta-line">Applies to the unreleased alpha (no version number yet). Checked 2026-10-09 on PHP 8.3 to 8.5.</p></div>
+<div class="shell doc-layout has-toc">
+<aside class="sidebar"><details open><summary>Browse the guides</summary><nav aria-label="Guides"><a href="index.html">All guides</a><p>Get started</p><a href="install.html">Install</a><a href="getting-started.html" aria-current="page">Getting started</a><p>Core ideas</p><a href="concepts.html">Concepts</a><p>Protections</p><a href="choosing-policies.html">Choosing policies</a><a href="retry-and-budget.html">Retry and budget</a><a href="rate-limiting.html">Rate limiting</a><a href="circuit-breaker.html">Circuit breaker</a><a href="bulkhead-and-cooldown.html">Bulkhead and cooldown</a><a href="fallback.html">Fallback</a><p>Errors and tests</p><a href="error-handling.html">Error handling</a><a href="testing.html">Testing with the virtual clock</a><p>Packages</p><a href="redis.html">Shared state with Redis</a><a href="guzzle.html">Guzzle requests with Reqtide</a><p>Reference</p><a href="api-reference.html">API reference</a><a href="limits.html">Limits and non-guarantees</a><p>Trust and help</p><a href="comparison.html">Comparison with other libraries</a><a href="faq.html">FAQ</a></nav></details></aside>
+<article class="prose">
+<aside class="callout warn"><span class="callout-title">Alpha</span><p>Reqtide is not released and not on Packagist. State is process-local and in-memory only. See <a href="limits.html">Limits</a>.</p></aside>
+<p><strong>Time:</strong> about 10 minutes. <strong>You need:</strong> PHP 8.3 or newer (64-bit), Composer, and the package installed as described in <a href="install.html">Install</a>. Every code block below is part of <a href="https://github.com/ehsanenaloo/reqtide/blob/main/examples/06-getting-started.php" rel="noopener"><code>examples/06-getting-started.php</code></a>, which <code>tools/run-examples.sh</code> runs and compares with the recorded output.</p>
+<h2 id="step-1-load-the-classes">Step 1: Load the classes<a class="anchor" href="#step-1-load-the-classes" aria-label="Link to this section">#</a></h2>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-k">use</span> Enaxon\Reqtide\Execution\AttemptContext;
+<span class="tk-k">use</span> Enaxon\Reqtide\Execution\OperationSafety;
+<span class="tk-k">use</span> Enaxon\Reqtide\Execution\ReplaySafetyContract;
+<span class="tk-k">use</span> Enaxon\Reqtide\Outcome\ExceptionClassifier;
+<span class="tk-k">use</span> Enaxon\Reqtide\Pipeline\PipelineBuilder;
+<span class="tk-k">use</span> Enaxon\Reqtide\Policy\AttemptTimeoutRequirement;
+<span class="tk-k">use</span> Enaxon\Reqtide\Policy\BackoffMode;
+<span class="tk-k">use</span> Enaxon\Reqtide\Policy\JitterMode;
+<span class="tk-k">use</span> Enaxon\Reqtide\Value\Duration;
+<span class="tk-k">use</span> Enaxon\Reqtide\Value\Ratio;
+
+<span class="tk-k">require</span> __DIR__ . <span class="tk-s">'/vendor/autoload.php'</span>;</code></pre>
+<p>In your project the last line loads Composer's autoloader. In this repository the example loads it through <code>examples/autoload.php</code>.</p>
+<h2 id="step-2-say-which-failure-is-transient">Step 2: Say which failure is transient<a class="anchor" href="#step-2-say-which-failure-is-transient" aria-label="Link to this section">#</a></h2>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-c">/** The failure we treat as transient. Anything else is a plain failure and is never retried. */</span>
+<span class="tk-k">final</span> <span class="tk-k">class</span> UpstreamTimeout <span class="tk-k">extends</span> \RuntimeException {}</code></pre>
+<p>Reqtide never guesses which of your exceptions are safe to retry. You name the classes in the next step. Anything you do not name is a plain failure: it is not retried, it is not replaced by a fallback, and it counts against the circuit breaker.</p>
+<h2 id="step-3-build-the-pipeline-once">Step 3: Build the pipeline once<a class="anchor" href="#step-3-build-the-pipeline-once" aria-label="Link to this section">#</a></h2>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-v">$pipeline</span> = PipelineBuilder::profile(<span class="tk-s">'payments'</span>, <span class="tk-s">'v1'</span>)
+    -&gt;partition(<span class="tk-s">'shop'</span>, <span class="tk-s">'prod'</span>, <span class="tk-s">'payments-api'</span>)
+    <span class="tk-c">// One attempt may take at most 2 s (checked by you, not enforced inside your code: "Cooperative").</span>
+    -&gt;attemptTimeout(Duration::seconds(<span class="tk-n">2</span>), AttemptTimeoutRequirement::Cooperative)
+    <span class="tk-c">// At most 3 attempts in total (the first call counts), exponential backoff from 10 ms up to 100 ms.</span>
+    -&gt;retry(<span class="tk-n">3</span>, BackoffMode::Exponential, Duration::milliseconds(<span class="tk-n">10</span>), Duration::milliseconds(<span class="tk-n">100</span>), JitterMode::Full)
+    <span class="tk-c">// Retries draw from a budget so a failing dependency is not hammered: 10 tokens, 10 more per minute.</span>
+    -&gt;retryBudget(<span class="tk-n">10</span>, <span class="tk-n">10</span>, Duration::seconds(<span class="tk-n">60</span>), Duration::seconds(<span class="tk-n">10</span>))
+    <span class="tk-c">// Token bucket: 5 tokens, refilled 5 per second. Every dispatch, retries included, costs 1 token.</span>
+    -&gt;rateLimit(PipelineBuilder::tokenBucket(<span class="tk-n">5</span>, <span class="tk-n">5</span>, Duration::seconds(<span class="tk-n">1</span>)))
+    <span class="tk-c">// Judge the last 10 completed calls; from 4 samples on, open at &gt;= 1/2 failures, for 30 s, then allow 1 probe.</span>
+    -&gt;circuitBreaker(PipelineBuilder::lastCalls(<span class="tk-n">10</span>), <span class="tk-n">4</span>, Ratio::of(<span class="tk-n">1</span>, <span class="tk-n">2</span>), Duration::seconds(<span class="tk-n">30</span>), <span class="tk-n">1</span>, <span class="tk-n">1</span>, Duration::seconds(<span class="tk-n">10</span>))
+    <span class="tk-c">// Only UpstreamTimeout may be retried.</span>
+    -&gt;compileInMemory(ExceptionClassifier::create()-&gt;retryOn(UpstreamTimeout::<span class="tk-k">class</span>));</code></pre>
+<p>Each line is one decision, and every number is yours because Reqtide ships no defaults:</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Table, scrolls sideways on narrow screens"><table><thead><tr><th scope="col">Call</th><th scope="col">Decides</th></tr></thead><tbody><tr><td><code>profile('payments', 'v1')</code></td><td>The name and version of this configuration. The version appears in every error report.</td></tr><tr><td><code>partition('shop', 'prod', 'payments-api')</code></td><td>Whose state this is: application, environment and the dependency being protected. State is keyed by it, so give each dependency its own subject.</td></tr><tr><td><code>attemptTimeout(...)</code></td><td>The longest one attempt may take. <code>Cooperative</code> states the truth: the synchronous runtime cannot stop your code, so your code must respect the time.</td></tr><tr><td><code>retry(3, ...)</code></td><td>At most 3 attempts including the first, backing off exponentially from 10 ms to at most 100 ms with full jitter.</td></tr><tr><td><code>retryBudget(10, 10, 60 s, 10 s)</code></td><td>A shared pool of 10 retry tokens refilled by 10 per minute, so a dependency that is down does not receive three times the traffic. It is required whenever <code>retry()</code> allows more than one attempt.</td></tr><tr><td><code>rateLimit(tokenBucket(5, 5, 1 s))</code></td><td>A token bucket of capacity 5 refilled by 5 tokens per second. Every dispatch costs one token, the first attempt and each retry alike.</td></tr><tr><td><code>circuitBreaker(lastCalls(10), 4, 1/2, 30 s, 1, 1, 10 s)</code></td><td>Judge the last 10 completed calls once 4 exist, open at a failure share of at least 1/2, stay open for 30 s, then allow 1 probe; one successful probe closes it. The last argument is how long a permit stays valid, and it must exceed the attempt timeout by more than 1 s.</td></tr><tr><td><code>compileInMemory(...)</code></td><td>Validates the combination and wires process-local memory backends. A mistake raises <code>InvalidConfigurationException</code> naming the option.</td></tr></tbody></table></div>
+<p>Build the pipeline at start-up and reuse it. It holds the state that makes the limits work, so a pipeline you rebuild per request forgets everything each time.</p>
+<h2 id="step-4-write-the-call-you-want-to-protect">Step 4: Write the call you want to protect<a class="anchor" href="#step-4-write-the-call-you-want-to-protect" aria-label="Link to this section">#</a></h2>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-v">$calls</span> = <span class="tk-n">0</span>;
+<span class="tk-v">$callApi</span> = <span class="tk-k">static</span> <span class="tk-k">function</span> (AttemptContext <span class="tk-v">$attempt</span>) <span class="tk-k">use</span> (&amp;<span class="tk-v">$calls</span>): <span class="tk-k">string</span> {
+    ++<span class="tk-v">$calls</span>;
+    <span class="tk-k">if</span> (<span class="tk-v">$calls</span> &lt; <span class="tk-n">3</span>) {
+        <span class="tk-k">throw</span> <span class="tk-k">new</span> UpstreamTimeout(<span class="tk-s">'upstream timed out'</span>);
+    }
+
+    <span class="tk-k">return</span> <span class="tk-s">"</span><span class="tk-s">ok on attempt </span><span class="tk-s">{</span><span class="tk-s">$attempt</span><span class="tk-s">-&gt;</span><span class="tk-s">dispatchedAttemptNumber</span>}<span class="tk-s">"</span>;
+};</code></pre>
+<p>Your callable receives an <code>AttemptContext</code> (operation id, attempt number, the deadline). Return the value; throw your own exceptions. This one fails twice and then succeeds, so you can watch the retries.</p>
+<h2 id="step-5-run-it-with-a-context">Step 5: Run it with a context<a class="anchor" href="#step-5-run-it-with-a-context" aria-label="Link to this section">#</a></h2>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-c">// One context per operation. Its deadline covers all attempts and waits together. forReadOnlyCallable() is YOUR</span>
+<span class="tk-c">// statement that running this callable again is safe; Reqtide cannot check it, and refuses to retry without it.</span>
+<span class="tk-v">$context</span> = <span class="tk-v">$pipeline</span>-&gt;newContext(
+    Duration::seconds(<span class="tk-n">30</span>),
+    OperationSafety::replayableRead(ReplaySafetyContract::forReadOnlyCallable(<span class="tk-s">'get-payment'</span>, Duration::seconds(<span class="tk-n">3600</span>))),
+);
+
+<span class="tk-k">echo</span> <span class="tk-v">$pipeline</span>-&gt;execute(<span class="tk-v">$callApi</span>, <span class="tk-v">$context</span>), <span class="tk-s">"\n"</span>;
+<span class="tk-k">echo</span> <span class="tk-s">"</span><span class="tk-s">invocations: </span><span class="tk-s">{</span><span class="tk-s">$calls</span>}<span class="tk-s">\n</span><span class="tk-s">"</span>;</code></pre>
+<p>Run it. The output is:</p>
+<pre class="output" tabindex="0" role="group" aria-label="Output"><code class="language-text-output">ok on attempt 3
+invocations: 3</code></pre>
+<p>What happened:</p>
+<ol><li><code>newContext()</code> created the deadline: 30 seconds for the whole operation, retries and waits included. It also carries your statement that repeating this call is safe. <code>forReadOnlyCallable()</code> is that statement. Reqtide cannot verify it and will not retry without it.</li><li>Attempts 1 and 2 threw <code>UpstreamTimeout</code>, which you listed as retryable. Each time the pipeline waited a backoff delay, drew one token from the retry budget and charged one rate-limit token.</li><li>Attempt 3 returned a value, and <code>execute()</code> returned exactly that value. Its type is known to static analysis: <code>string</code>.</li><li>The three dispatches consumed three rate-limit tokens. A charge is never refunded, so size quotas for the expected traffic multiplied by the attempts.</li></ol>
+<h2 id="when-something-is-wrong">When something is wrong<a class="anchor" href="#when-something-is-wrong" aria-label="Link to this section">#</a></h2>
+<p>Two mistakes you are likely to make first, with the messages Reqtide gives (see <a href="error-handling.html">error handling</a> for the full model):</p>
+<pre tabindex="0" role="group" aria-label="Message"><code class="language-text">retry(maxAttempts=3) requires retryBudget(): retries must be paid for so a failing dependency is not hammered. Every call also needs an explicit replay-safety assertion, for example ReplaySafetyContract::forReadOnlyCallable(); Reqtide never infers that repeating a callable is safe.</code></pre>
+<pre tabindex="0" role="group" aria-label="Message"><code class="language-text">maxAttempts greater than one requires an explicit replay-safety contract; the operation is Unsafe.</code></pre>
+<p>The first is raised while building; the second when a retrying pipeline gets a context without the assertion. Both come before anything is sent.</p>
+<h2 id="limits-to-remember">Limits to remember<a class="anchor" href="#limits-to-remember" aria-label="Link to this section">#</a></h2>
+<ul><li>State is in the memory of this PHP process. Under PHP-FPM a pipeline built inside a request starts every request with a full quota and a closed circuit. Build it once per long-lived worker, or accept per-request limits. Shared state needs the separate Redis package, which is not released (see <a href="redis.html">Shared state with Redis</a> and <a href="limits.html">Limits</a>).</li><li>The deadline is checked between steps. It does not interrupt your callable.</li><li>The example's delays really sleep, in slices of at most 5 ms. For tests that must not sleep, see <a href="testing.html">testing</a>.</li></ul>
+<h2 id="next-steps">Next steps<a class="anchor" href="#next-steps" aria-label="Link to this section">#</a></h2>
+<ul><li><a href="concepts.html">Concepts</a>: the pipeline, the operation, the deadline and the partition.</li><li><a href="choosing-policies.html">Choosing policies</a>: what each protection is for and what it refuses.</li><li><a href="error-handling.html">Error handling</a>: catch refusals, read <code>ReasonCode</code> and <code>Problem</code>, use detailed mode.</li><li><a href="testing.html">Testing with the virtual clock</a>: virtual time, scripted attempts, recorded events.</li></ul>
+<div class="reading-footer"><a class="prev" href="install.html"><small>Previous</small>Install</a><a class="next" href="concepts.html"><small>Next</small>Concepts</a></div>
+</article>
+<nav class="toc" aria-label="On this page"><p>On this page</p><ol><li><a href="#step-1-load-the-classes">Step 1: Load the classes</a></li><li><a href="#step-2-say-which-failure-is-transient">Step 2: Say which failure is transient</a></li><li><a href="#step-3-build-the-pipeline-once">Step 3: Build the pipeline once</a></li><li><a href="#step-4-write-the-call-you-want-to-protect">Step 4: Write the call you want to protect</a></li><li><a href="#step-5-run-it-with-a-context">Step 5: Run it with a context</a></li><li><a href="#when-something-is-wrong">When something is wrong</a></li><li><a href="#limits-to-remember">Limits to remember</a></li><li><a href="#next-steps">Next steps</a></li></ol></nav>
+</div>
+</main>
+<footer class="footer"><div class="shell footer-inner"><p>Reqtide PHP documentation &middot; MIT licensed &middot; Maintained by Ehsan Enaloo</p><div><a href="../guides/limits.html">Limits</a><a href="../guides/faq.html">FAQ</a><a href="https://github.com/ehsanenaloo/reqtide" rel="noopener">Source repository &#8599;</a></div></div></footer>
+</body>
+</html>

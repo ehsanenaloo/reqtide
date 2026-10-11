@@ -1,0 +1,37 @@
+name: Question
+description: Ask how to use Reqtide PHP.
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please read the [documentation](https://github.com/ehsanenaloo/reqtide/tree/main/docs), especially the FAQ and the limits page, and search existing issues first.
+        This is a single-maintainer alpha project, so replies are best effort. Do not paste secrets, tokens or production data.
+  - type: textarea
+    id: question
+    attributes:
+      label: What do you want to do?
+      description: Say what you are trying to do and what you tried so far. A short script helps.
+      render: php
+    validations:
+      required: true
+  - type: input
+    id: php
+    attributes:
+      label: PHP version
+      placeholder: "8.4.x"
+  - type: input
+    id: commit
+    attributes:
+      label: Reqtide commit or branch
+      placeholder: "main @ abc1234"
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I read the documentation and searched existing issues.
+          required: true
+        - label: I did not include secrets, tokens or production data.
+          required: true

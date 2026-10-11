@@ -1,0 +1,60 @@
+{
+    // Mutation testing for the Core source (src/ without src/Testing, which is test tooling and was never part of the measured population). Thresholds are deliberately modest at first and
+    // are ratcheted upward as surviving mutants are killed. Raise, never lower.
+    "$schema": "vendor/infection/infection/resources/schema.json",
+    "source": {
+        "directories": ["src"],
+        "excludes": ["Testing"]
+    },
+    "phpUnit": {
+        "configDir": "build/mutation"
+    },
+    "testFramework": "phpunit",
+    "threads": "max",
+    // Per-mutant process timeout in seconds. Why 30 and not the previous 20 (investigated 2026-10-09):
+    // Infection SKIPS (never evaluates, silently outside the MSI) every mutant whose covering tests have a
+    // nominal run time >= this value, and reports a "timeout" for any that run longer. At 20 s with `threads: max`
+    // on 8 contended cores and whole test classes per mutant, 218 mutants were skipped and 322 timed out, among
+    // them mutants that cannot loop (string concatenations in explain(), array items, visibility changes). The
+    // causes were slow-but-finite tests (BoundedArithmetic oracle, tombstone churn, file-scan tests, measured
+    // under pcov) and CPU contention, not infinite loops. The mutation script now also passes
+    // --only-covering-test-cases (composer.json) so a mutant runs only the test cases that cover its line.
+    // Timeouts that remain are true hangs (loop-bound and break/continue mutants) and are counted as detected.
+    "timeout": 30,
+    // Measured 2026-10-09 on PHP 8.4.26 in a container-local copy of the repository (4303 mutants, 7 threads,
+    // 10 min): MSI 94.28 %, 246 escaped, 28 timed out (all true non-terminating loops), 0 skipped, 0 not covered.
+    // The same configuration before the tests of this change gave 81.8 % (770 escaped). The thresholds below are
+    // the achieved value minus a margin of about one point. Raise, never lower.
+    //
+    // The escaped mutants that remain are, as far as they were individually analysed, not behavioural gaps. No
+    // ignore rule hides them; this list only records why they survive, so nobody spends time re-deriving it:
+    //  - Dual-path arithmetic (BoundedArithmetic, Limbs, ScaledArithmetic, ExactProduct): `<=` versus `<` on the
+    //    "does the product fit a native int" test, and removing the early `return` of the native path, only change
+    //    WHICH of two paths computes the result. Both paths return identical values by design.
+    //  - Redundant guards: `backend === null || policy === null` (a backend and its policy are always installed
+    //    together once a definition compiled), `permit === null || env->x === null || def->x === null`, and the
+    //    defensive clamps `min(balance + cost, capacity - pending)` that the invariant already enforces.
+    //  - Housekeeping that is idempotent: BudgetPartition/CircuitPartition `prune()` calls whose effect is repeated
+    //    by the next read, loop `break`/`continue` over insertion-ordered maps, `(string) $key` casts of keys that
+    //    are never numeric, and `$flag = true/false` on a variable overwritten before it is read.
+    //  - Separators of identity/fingerprint strings whose components are bounded so that no two valid settings can
+    //    concatenate to the same string (the operand-removal mutants of the same lines ARE killed).
+    //  - Dead truncation: Problem::detail() cuts at 200 bytes but no registered reason code produces more than 200
+    //    (asserted by a test), so the boundary mutants cannot be observed.
+    //  - Unreachable arms: the `default` of `match` over an interface whose only implementations are handled above
+    //    the call, and wall-clock branches before the epoch that return the same saturated answer as their mutants.
+    "minMsi": 93,
+    "minCoveredMsi": 93,
+    "initialTestsPhpOptions": "-d pcov.enabled=1 -d pcov.directory=src",
+    "tmpDir": "build/infection/tmp",
+    "logs": {
+        "text": "build/infection/infection.log",
+        "summary": "build/infection/summary.log",
+        "json": "build/infection/infection.json",
+        "html": "build/infection/infection.html",
+        "perMutator": "build/infection/per-mutator.md"
+    },
+    "mutators": {
+        "@default": true
+    }
+}

@@ -1,0 +1,45 @@
+-- circuit breaker
+call 1: PermanentError (upstream is down)
+call 2: PermanentError (upstream is down)
+call 3: PermanentError (upstream is down)
+call 4: PermanentError (upstream is down)
+call 5: Enaxon\Reqtide\Exception\AdmissionRejectedException
+{
+    "type": "tag:enaloo.com,2026:reqtide:problem:circuit_open",
+    "title": "Circuit is open",
+    "category": "admission",
+    "code": "circuit_open",
+    "stage": "admission",
+    "severity": "info",
+    "retryability": "after_wait",
+    "detail": "Circuit is open. Category: admission; retryability: after_wait; stage: admission.",
+    "operationId": "failure-demo-5",
+    "profileVersion": "v1",
+    "attemptId": null,
+    "correlationId": "failure-demo-5",
+    "causes": []
+}
+callable invocations: 4
+detailed disposition: rejected
+{
+    "type": "tag:enaloo.com,2026:reqtide:problem:circuit_open",
+    "title": "Circuit is open",
+    "category": "admission",
+    "code": "circuit_open",
+    "stage": "admission",
+    "severity": "info",
+    "retryability": "after_wait",
+    "detail": "Circuit is open. Category: admission; retryability: after_wait; stage: admission.",
+    "operationId": "failure-demo-6",
+    "profileVersion": "v1",
+    "attemptId": null,
+    "correlationId": "failure-demo-6",
+    "causes": []
+}
+
+-- rate limit
+served: 2
+third call: Enaxon\Reqtide\Exception\AdmissionRejectedException
+problem.code: rate.exhausted
+problem.retryability: after_wait
+ok

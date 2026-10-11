@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en" dir="ltr" data-root="../">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retry and budget | Reqtide PHP documentation</title>
+<meta name="description" content="Retries with backoff and jitter, the safety statement every retry needs, the retry budget that stops a retry storm, and how Retry-After is honored or returned to you.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0f5c99">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Retry and budget | Reqtide PHP documentation">
+<meta property="og:description" content="Retries with backoff and jitter, the safety statement every retry needs, the retry budget that stops a retry storm, and how Retry-After is honored or returned to you.">
+<meta name="twitter:card" content="summary">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../styles.css">
+<script>try{var t=localStorage.getItem("rt-docs-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+<script defer src="../app.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a><header class="site-header"><div class="shell header-inner"><a class="brand" href="../index.html"><img src="../assets/logo.svg" width="34" height="34" alt=""><span>Reqtide PHP<small>Documentation</small></span></a><nav class="top-nav" aria-label="Primary"><a href="../index.html">Overview</a><a href="../guides/getting-started.html">Getting started</a><a href="../guides/index.html">All guides</a><a href="../guides/api-reference.html">API reference</a><a href="../guides/faq.html">FAQ</a><a href="https://github.com/ehsanenaloo/reqtide" rel="noopener">GitHub &#8599;</a></nav><div class="header-tools"><span data-search-host></span><button type="button" class="icon-button" data-theme-toggle hidden>Theme</button></div></div></header>
+<main id="main">
+<div class="shell page-intro"><p class="breadcrumbs"><a href="../index.html">Home</a> / <a href="index.html">Guides</a> / Protections</p><h1>Retry and budget</h1><p class="lead">After this guide you can configure retries, you know the three things a retry needs before it happens, you can size a retry budget, and you know what Reqtide does when a server says "retry after 60 seconds".</p><p class="meta-line">Applies to the unreleased alpha (no version number yet). Checked 2026-10-09 on PHP 8.3 to 8.5.</p></div>
+<div class="shell doc-layout has-toc">
+<aside class="sidebar"><details open><summary>Browse the guides</summary><nav aria-label="Guides"><a href="index.html">All guides</a><p>Get started</p><a href="install.html">Install</a><a href="getting-started.html">Getting started</a><p>Core ideas</p><a href="concepts.html">Concepts</a><p>Protections</p><a href="choosing-policies.html">Choosing policies</a><a href="retry-and-budget.html" aria-current="page">Retry and budget</a><a href="rate-limiting.html">Rate limiting</a><a href="circuit-breaker.html">Circuit breaker</a><a href="bulkhead-and-cooldown.html">Bulkhead and cooldown</a><a href="fallback.html">Fallback</a><p>Errors and tests</p><a href="error-handling.html">Error handling</a><a href="testing.html">Testing with the virtual clock</a><p>Packages</p><a href="redis.html">Shared state with Redis</a><a href="guzzle.html">Guzzle requests with Reqtide</a><p>Reference</p><a href="api-reference.html">API reference</a><a href="limits.html">Limits and non-guarantees</a><p>Trust and help</p><a href="comparison.html">Comparison with other libraries</a><a href="faq.html">FAQ</a></nav></details></aside>
+<article class="prose">
+<aside class="callout warn"><span class="callout-title">Alpha</span><p>State is process-local: the retry budget belongs to one PHP process, and a running callback is never interrupted. See <a href="limits.html">Limits and non-guarantees</a>.</p></aside>
+<p>Code blocks come from <a href="https://github.com/ehsanenaloo/reqtide/blob/main/examples/06-getting-started.php" rel="noopener"><code>examples/06-getting-started.php</code></a>, <a href="https://github.com/ehsanenaloo/reqtide/blob/main/examples/07-error-handling.php" rel="noopener"><code>examples/07-error-handling.php</code></a> and <a href="https://github.com/ehsanenaloo/reqtide/blob/main/examples/09-choosing-policies.php" rel="noopener"><code>examples/09-choosing-policies.php</code></a>, which <code>tools/run-examples.sh</code> runs and compares with the recorded output.</p>
+<h2 id="a-retry-needs-three-things">A retry needs three things<a class="anchor" href="#a-retry-needs-three-things" aria-label="Link to this section">#</a></h2>
+<p>Reqtide never retries on its own initiative. A second attempt happens only when all three of these hold:</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Table, scrolls sideways on narrow screens"><table><thead><tr><th scope="col">Needed</th><th scope="col">Why</th><th scope="col">Where you give it</th></tr></thead><tbody><tr><td><strong>Your statement that repeating the call is safe</strong></td><td>Reqtide cannot know whether a callable has side effects, and it has no HTTP knowledge.</td><td><code>OperationSafety</code> in <code>newContext()</code></td></tr><tr><td><strong>A retry budget</strong></td><td>Retries must be paid for, so a failing dependency is not hammered.</td><td><code>retryBudget()</code>, required whenever <code>retry()</code> allows more than one attempt</td></tr><tr><td><strong>A retryable exception class</strong></td><td>You decide which of your failures are transient.</td><td><code>ExceptionClassifier::retryOn()</code></td></tr></tbody></table></div>
+<p>Without the statement, the context defaults to <code>OperationSafety::unsafe()</code> and a pipeline that allows more than one attempt refuses to run. An exception you did not list is a plain failure: it is returned to you, not retried.</p>
+<h2 id="configure-the-retry-and-its-budget">Configure the retry and its budget<a class="anchor" href="#configure-the-retry-and-its-budget" aria-label="Link to this section">#</a></h2>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php">    <span class="tk-c">// At most 3 attempts in total (the first call counts), exponential backoff from 10 ms up to 100 ms.</span>
+    -&gt;retry(<span class="tk-n">3</span>, BackoffMode::Exponential, Duration::milliseconds(<span class="tk-n">10</span>), Duration::milliseconds(<span class="tk-n">100</span>), JitterMode::Full)
+    <span class="tk-c">// Retries draw from a budget so a failing dependency is not hammered: 10 tokens, 10 more per minute.</span>
+    -&gt;retryBudget(<span class="tk-n">10</span>, <span class="tk-n">10</span>, Duration::seconds(<span class="tk-n">60</span>), Duration::seconds(<span class="tk-n">10</span>))</code></pre>
+<ul><li><code>maxAttempts</code> counts the first attempt, so 3 means one call plus at most two retries. It must be between 1 and 64.</li><li>The delay grows from <code>baseDelay</code>, constant or exponential, and never exceeds <code>maximumDelay</code>.</li><li><code>JitterMode::Full</code> draws each delay uniformly from zero to the computed delay. <code>JitterMode::None</code> waits exactly the computed delay.</li><li>The optional last argument is the time that must still remain after a delay for another attempt to be worth starting. The default is none.</li></ul>
+<p>The retry budget is a token bucket: <code>retryBudget(10, 10, Duration::seconds(60), Duration::seconds(10))</code> holds at most 10 tokens, adds 10 per minute, and holds a reservation for at most 10 seconds while a retry is being dispatched. That last number must exceed the attempt timeout by more than 1 second.</p>
+<p>The budget is an <strong>absolute pool</strong> of tokens, not a ratio of first attempts, and you size it. An oversized pool gives no protection. An undersized one stops retries early with <code>retry_budget_exhausted</code>.</p>
+<h2 id="make-the-statement-on-every-call">Make the statement on every call<a class="anchor" href="#make-the-statement-on-every-call" aria-label="Link to this section">#</a></h2>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-c">// One context per operation. Its deadline covers all attempts and waits together. forReadOnlyCallable() is YOUR</span>
+<span class="tk-c">// statement that running this callable again is safe; Reqtide cannot check it, and refuses to retry without it.</span>
+<span class="tk-v">$context</span> = <span class="tk-v">$pipeline</span>-&gt;newContext(
+    Duration::seconds(<span class="tk-n">30</span>),
+    OperationSafety::replayableRead(ReplaySafetyContract::forReadOnlyCallable(<span class="tk-s">'get-payment'</span>, Duration::seconds(<span class="tk-n">3600</span>))),
+);</code></pre>
+<p><code>forReadOnlyCallable()</code> is your assertion that running the callable again is safe. Reqtide cannot check it. The same call also takes how long the assertion stays valid. Two other kinds exist: <code>providerIdempotentMutation()</code> for a provider that deduplicates repeated mutations, and <code>unsafe()</code>, the default.</p>
+<p>Two mistakes you are likely to make first, with the messages Reqtide gives. Both are raised before anything is sent:</p>
+<pre tabindex="0" role="group" aria-label="Message"><code class="language-text">retry(maxAttempts=3) requires retryBudget(): retries must be paid for so a failing dependency is not hammered. Every call also needs an explicit replay-safety assertion, for example ReplaySafetyContract::forReadOnlyCallable(); Reqtide never infers that repeating a callable is safe.</code></pre>
+<pre tabindex="0" role="group" aria-label="Message"><code class="language-text">maxAttempts greater than one requires an explicit replay-safety contract; the operation is Unsafe.</code></pre>
+<p>The first is raised while building, the second when a retrying pipeline gets a context without the assertion.</p>
+<h2 id="the-deadline-still-rules">The deadline still rules<a class="anchor" href="#the-deadline-still-rules" aria-label="Link to this section">#</a></h2>
+<p>A retry whose delay does not fit in the remaining deadline is not started, and the reason is <code>retry_delay_exceeds_deadline</code>. The total deadline covers all attempts and all waits. Nothing is held during a delay: no circuit permit, no bulkhead slot.</p>
+<p>Every retry also costs a rate-limit unit. See <a href="rate-limiting.html">Rate limiting</a>.</p>
+<h2 id="when-the-retry-policy-gives-up">When the retry policy gives up<a class="anchor" href="#when-the-retry-policy-gives-up" aria-label="Link to this section">#</a></h2>
+<p>When retries stop because of the retry policy itself, your last exception is kept as the result, and the reason is recorded as a <code>retry</code>-stage problem. The simple <code>execute()</code> call throws your own exception. <a href="error-handling.html">Detailed mode</a> explains why it stopped:</p>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-c">// 5. When the retry policy gives up, the last business failure is kept, and the reason is recorded.</span>
+<span class="tk-v">$retrying</span> = <span class="tk-v">$base</span>()
+    -&gt;retry(<span class="tk-n">2</span>, BackoffMode::Constant, Duration::milliseconds(<span class="tk-n">5</span>), Duration::milliseconds(<span class="tk-n">5</span>), JitterMode::None)
+    -&gt;retryBudget(<span class="tk-n">10</span>, <span class="tk-n">10</span>, Duration::seconds(<span class="tk-n">60</span>), Duration::seconds(<span class="tk-n">10</span>))
+    -&gt;compileInMemory(ExceptionClassifier::create()-&gt;retryOn(UpstreamTimeout::<span class="tk-k">class</span>));
+<span class="tk-v">$safety</span> = OperationSafety::replayableRead(ReplaySafetyContract::forReadOnlyCallable(<span class="tk-s">'get-order'</span>, Duration::seconds(<span class="tk-n">3600</span>)));
+<span class="tk-v">$completion</span> = <span class="tk-v">$retrying</span>-&gt;executeDetailed(
+    <span class="tk-k">static</span> <span class="tk-k">fn</span>(): <span class="tk-k">string</span> =&gt; <span class="tk-k">throw</span> <span class="tk-k">new</span> UpstreamTimeout(<span class="tk-s">'upstream timed out'</span>),
+    <span class="tk-v">$retrying</span>-&gt;newContext(Duration::seconds(<span class="tk-n">30</span>), <span class="tk-v">$safety</span>, operationId: <span class="tk-s">'orders-4'</span>),
+);
+<span class="tk-k">echo</span> <span class="tk-s">'disposition: '</span>, <span class="tk-v">$completion</span>-&gt;disposition-&gt;value, <span class="tk-s">"\n"</span>;
+<span class="tk-k">echo</span> <span class="tk-s">'dispatched: '</span>, <span class="tk-v">$completion</span>-&gt;summary-&gt;dispatched, <span class="tk-s">"\n"</span>;
+<span class="tk-k">echo</span> <span class="tk-s">'problem code: '</span>, <span class="tk-v">$completion</span>-&gt;problem()?-&gt;code-&gt;value, <span class="tk-s">"\n"</span>;
+<span class="tk-k">echo</span> <span class="tk-s">'last business failure: '</span>, <span class="tk-v">$completion</span>-&gt;terminalOutcome?-&gt;exception()::<span class="tk-k">class</span>, <span class="tk-s">"\n"</span>;</code></pre>
+<pre class="output" tabindex="0" role="group" aria-label="Output"><code class="language-text-output">disposition: failed
+dispatched: 2
+problem code: attempts_exhausted
+last business failure: Reqtide\Examples\ErrorHandling\UpstreamTimeout</code></pre>
+<p>A refusal by another protection (circuit, bulkhead, rate limit, cooldown) on a later attempt behaves differently: the refusal becomes the result, and your last exception is attached as <code>getPrevious()</code>.</p>
+<h2 id="retry-after-honored-or-returned-to-you">Retry-After: honored, or returned to you<a class="anchor" href="#retry-after-honored-or-returned-to-you" aria-label="Link to this section">#</a></h2>
+<p>A server-stated wait, such as the <code>Retry-After</code> header of an HTTP 429, is treated as a <strong>lower bound</strong> for the next attempt. Reqtide never sends sooner and never clamps the wait down. Reqtide has no HTTP awareness: turning a 429 and its header into a <code>Duration</code> is your classifier's job, with <code>retryAfterFrom()</code>. The class below stands in for the exception you would throw on a 429:</p>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-c">/** Stands in for an HTTP 429 with a Retry-After header. */</span>
+<span class="tk-k">final</span> <span class="tk-k">class</span> Throttled <span class="tk-k">extends</span> \RuntimeException
+{
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(<span class="tk-k">public</span> <span class="tk-k">readonly</span> Duration <span class="tk-v">$wait</span>)
+    {
+        parent::__construct(<span class="tk-s">'throttled'</span>);
+    }
+}</code></pre>
+<p>When honoring the wait is impossible, the answer is a <strong>deferral, not a sleep</strong>:</p>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-k">echo</span> <span class="tk-s">"-- 4. Retry-After: a wait too long for the policy is returned to you, not slept through\n"</span>;
+<span class="tk-v">$pipeline</span> = <span class="tk-v">$base</span>()
+    -&gt;retry(<span class="tk-n">3</span>, BackoffMode::Constant, Duration::milliseconds(<span class="tk-n">5</span>), Duration::milliseconds(<span class="tk-n">100</span>), JitterMode::None)
+    -&gt;retryBudget(<span class="tk-n">10</span>, <span class="tk-n">10</span>, Duration::seconds(<span class="tk-n">60</span>), Duration::seconds(<span class="tk-n">10</span>))
+    -&gt;cooldown(Duration::seconds(<span class="tk-n">10</span>))
+    -&gt;compileInMemory(
+        ExceptionClassifier::create()
+            -&gt;retryOn(Throttled::<span class="tk-k">class</span>)
+            -&gt;retryAfterFrom(<span class="tk-k">static</span> <span class="tk-k">fn</span>(\Throwable <span class="tk-v">$e</span>): ?Duration =&gt; <span class="tk-v">$e</span> <span class="tk-k">instanceof</span> Throttled ? <span class="tk-v">$e</span>-&gt;wait : <span class="tk-k">null</span>),
+    );
+<span class="tk-v">$safety</span> = <span class="tk-k">static</span> <span class="tk-k">fn</span>(): OperationSafety =&gt; OperationSafety::replayableRead(
+    ReplaySafetyContract::forReadOnlyCallable(<span class="tk-s">'list-products'</span>, Duration::seconds(<span class="tk-n">3600</span>)),
+);
+<span class="tk-v">$calls</span> = <span class="tk-n">0</span>;
+<span class="tk-v">$throttled</span> = <span class="tk-k">static</span> <span class="tk-k">function</span> () <span class="tk-k">use</span> (&amp;<span class="tk-v">$calls</span>): <span class="tk-k">string</span> {
+    ++<span class="tk-v">$calls</span>;
+
+    <span class="tk-k">throw</span> <span class="tk-k">new</span> Throttled(Duration::seconds(<span class="tk-n">60</span>)); <span class="tk-c">// "retry after 60 seconds", but the longest retry delay is 100 ms</span>
+};
+<span class="tk-k">try</span> {
+    <span class="tk-v">$pipeline</span>-&gt;execute(<span class="tk-v">$throttled</span>, <span class="tk-v">$pipeline</span>-&gt;newContext(Duration::seconds(<span class="tk-n">30</span>), <span class="tk-v">$safety</span>()));
+} <span class="tk-k">catch</span> (AdmissionDeferredException <span class="tk-v">$e</span>) {
+    <span class="tk-k">echo</span> <span class="tk-s">"</span><span class="tk-s">deferred with </span><span class="tk-s">{</span><span class="tk-s">$e</span><span class="tk-s">-&gt;</span><span class="tk-s">reason</span>()<span class="tk-s">-&gt;</span><span class="tk-s">value</span>}<span class="tk-s">; wait hint present: </span><span class="tk-s">"</span>, <span class="tk-v">$e</span>-&gt;decision-&gt;retryAfter !== <span class="tk-k">null</span> ? <span class="tk-s">'yes'</span> : <span class="tk-s">'no'</span>, <span class="tk-s">"\n"</span>;
+    <span class="tk-k">echo</span> <span class="tk-s">'the throttling exception is kept as previous: '</span>, <span class="tk-v">$e</span>-&gt;getPrevious() <span class="tk-k">instanceof</span> Throttled ? <span class="tk-s">'yes'</span> : <span class="tk-s">'no'</span>, <span class="tk-s">"\n"</span>;
+}</code></pre>
+<pre class="output" tabindex="0" role="group" aria-label="Output"><code class="language-text-output">-- 4. Retry-After: a wait too long for the policy is returned to you, not slept through
+deferred with retry_after_exceeds_maximum_delay; wait hint present: yes
+the throttling exception is kept as previous: yes</code></pre>
+<ul><li>The wait exceeds the retry policy's <code>maximumDelay</code>: <code>retry_after_exceeds_maximum_delay</code>.</li><li>The wait does not fit in the remaining deadline: <code>retry_after_exceeds_deadline</code>.</li></ul>
+<p>The exception is an <code>AdmissionDeferredException</code> carrying the wait, with your throttling exception as <code>getPrevious()</code>. A positive <code>Retry-After</code> also extends a shared cooldown for the partition, so the next operation is deferred without calling the API. That is the subject of <a href="bulkhead-and-cooldown.html">Bulkhead and cooldown</a>.</p>
+<h2 id="testing-retries">Testing retries<a class="anchor" href="#testing-retries" aria-label="Link to this section">#</a></h2>
+<p>A test of exponential backoff should not sleep. With the virtual clock, a scripted callable and a recorded event list you can assert the exact delays: see <a href="testing.html">Testing with the virtual clock</a>.</p>
+<div class="reading-footer"><a class="prev" href="choosing-policies.html"><small>Previous</small>Choosing policies</a><a class="next" href="rate-limiting.html"><small>Next</small>Rate limiting</a></div>
+</article>
+<nav class="toc" aria-label="On this page"><p>On this page</p><ol><li><a href="#a-retry-needs-three-things">A retry needs three things</a></li><li><a href="#configure-the-retry-and-its-budget">Configure the retry and its budget</a></li><li><a href="#make-the-statement-on-every-call">Make the statement on every call</a></li><li><a href="#the-deadline-still-rules">The deadline still rules</a></li><li><a href="#when-the-retry-policy-gives-up">When the retry policy gives up</a></li><li><a href="#retry-after-honored-or-returned-to-you">Retry-After: honored, or returned to you</a></li><li><a href="#testing-retries">Testing retries</a></li></ol></nav>
+</div>
+</main>
+<footer class="footer"><div class="shell footer-inner"><p>Reqtide PHP documentation &middot; MIT licensed &middot; Maintained by Ehsan Enaloo</p><div><a href="../guides/limits.html">Limits</a><a href="../guides/faq.html">FAQ</a><a href="https://github.com/ehsanenaloo/reqtide" rel="noopener">Source repository &#8599;</a></div></div></footer>
+</body>
+</html>

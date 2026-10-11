@@ -1,0 +1,33 @@
+Reqtide
+Licensed under the MIT License (see LICENSE).
+
+Provenance
+
+Source code
+  The code in this package was written for this project. No third-party source
+  code is copied into it.
+
+Algorithms
+  Token bucket, fixed window and sliding window counter rate limiting,
+  exponential backoff with full jitter, the circuit breaker state machine and the
+  bulkhead (a limit on concurrent work) are public techniques. Reqtide
+  implements them from their general descriptions.
+
+Standards
+  Reqtide follows these standards. No text of them is included.
+  - RFC 9110 (HTTP Semantics): the Retry-After header and HTTP status
+    semantics used when it reads responses.
+  - RFC 9457 (Problem Details for HTTP APIs): the member model of the error
+    report.
+  - RFC 4151 (the tag URI scheme): the stable type identifiers of error
+    reports.
+  - RFC 3986 (URI Generic Syntax): reference resolution against a base URI in
+    the Guzzle package.
+
+Third-party dependencies
+  The Redis package requires Predis and the Guzzle package requires Guzzle.
+  They are separate projects under their own licenses and are not included in
+  these packages. Reqtide's core requires no package besides PHP.
+
+Predis, Guzzle, Redis and PHP are names or trademarks of their respective
+owners. Reqtide is not affiliated with them.

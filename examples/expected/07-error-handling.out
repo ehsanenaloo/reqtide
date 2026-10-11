@@ -1,0 +1,29 @@
+order 42
+Enaxon\Reqtide\Exception\AdmissionRejectedException
+reason: rate.exhausted
+{
+    "type": "tag:enaloo.com,2026:reqtide:problem:rate.exhausted",
+    "title": "Rate limit exhausted",
+    "category": "admission",
+    "code": "rate.exhausted",
+    "stage": "admission",
+    "severity": "info",
+    "retryability": "after_wait",
+    "detail": "Rate limit exhausted. Category: admission; retryability: after_wait; stage: admission.",
+    "operationId": "orders-2",
+    "profileVersion": "v1",
+    "attemptId": null,
+    "correlationId": "orders-2",
+    "causes": []
+}
+action: ask the caller to try again later
+business exception: Reqtide\Examples\ErrorHandling\UpstreamTimeout (upstream timed out)
+disposition: rejected
+dispatched: 0
+problem code: rate.exhausted
+disposition: failed
+dispatched: 2
+problem code: attempts_exhausted
+last business failure: Reqtide\Examples\ErrorHandling\UpstreamTimeout
+retry(maxAttempts=3) requires retryBudget(): retries must be paid for so a failing dependency is not hammered. Every call also needs an explicit replay-safety assertion, for example ReplaySafetyContract::forReadOnlyCallable(); Reqtide never infers that repeating a callable is safe.
+maxAttempts greater than one requires an explicit replay-safety contract; the operation is Unsafe.

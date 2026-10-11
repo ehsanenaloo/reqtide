@@ -1,0 +1,11 @@
+# Getting help
+
+Reqtide has no released version yet. Help is best effort from a single maintainer.
+
+- **How do I use it?** Start with the [documentation](../docs/README.md) and the [FAQ](../docs/guides/faq.html). The [limits page](../docs/guides/limits.html) lists what the alpha does not do.
+- **A question:** search the [existing issues](https://github.com/ehsanenaloo/reqtide/issues), then open one with the [question form](https://github.com/ehsanenaloo/reqtide/issues/new/choose).
+- **Bugs and feature requests:** use the same [issue forms](https://github.com/ehsanenaloo/reqtide/issues/new/choose).
+- **Security problems:** follow [SECURITY.md](SECURITY.md). Do not use public issues.
+- **Contributing:** read [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Do not paste secrets, tokens or production data into an issue.

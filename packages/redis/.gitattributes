@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+# Keep the split distribution lean: tests and tooling stay in the development repository.
+/tests/                 export-ignore
+/tools/                 export-ignore
+/.gitattributes         export-ignore
+/.gitignore             export-ignore

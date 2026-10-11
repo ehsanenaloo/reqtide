@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en" dir="ltr" data-root="../">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guzzle requests with Reqtide | Reqtide PHP documentation</title>
+<meta name="description" content="Wrap Guzzle requests with retries, deadlines, rate limits and circuit breaking. You state what may be sent twice. Body replay, Retry-After, the shared cooldown, client defaults, connection reuse, promises and limits.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0f5c99">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Guzzle requests with Reqtide | Reqtide PHP documentation">
+<meta property="og:description" content="Wrap Guzzle requests with retries, deadlines, rate limits and circuit breaking. You state what may be sent twice. Body replay, Retry-After, the shared cooldown, client defaults, connection reuse, promises and limits.">
+<meta name="twitter:card" content="summary">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../styles.css">
+<script>try{var t=localStorage.getItem("rt-docs-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+<script defer src="../app.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a><header class="site-header"><div class="shell header-inner"><a class="brand" href="../index.html"><img src="../assets/logo.svg" width="34" height="34" alt=""><span>Reqtide PHP<small>Documentation</small></span></a><nav class="top-nav" aria-label="Primary"><a href="../index.html">Overview</a><a href="../guides/getting-started.html">Getting started</a><a href="../guides/index.html">All guides</a><a href="../guides/api-reference.html">API reference</a><a href="../guides/faq.html">FAQ</a><a href="https://github.com/ehsanenaloo/reqtide" rel="noopener">GitHub &#8599;</a></nav><div class="header-tools"><span data-search-host></span><button type="button" class="icon-button" data-theme-toggle hidden>Theme</button></div></div></header>
+<main id="main">
+<div class="shell page-intro"><p class="breadcrumbs"><a href="../index.html">Home</a> / <a href="index.html">Guides</a> / Packages</p><h1>Guzzle requests with Reqtide</h1><p class="lead">After this guide you can send Guzzle requests through a Reqtide pipeline. You state which requests may be sent twice, you know what a status code and a transport failure look like in your code, and you know what the client refuses and what it does not do.</p><p class="meta-line">Applies to the unreleased alpha (no version number yet). Checked 2026-10-11 on PHP 8.3 to 8.5 and Guzzle 7.15.5, in local Docker on the command line.</p></div>
+<div class="shell doc-layout has-toc">
+<aside class="sidebar"><details open><summary>Browse the guides</summary><nav aria-label="Guides"><a href="index.html">All guides</a><p>Get started</p><a href="install.html">Install</a><a href="getting-started.html">Getting started</a><p>Core ideas</p><a href="concepts.html">Concepts</a><p>Protections</p><a href="choosing-policies.html">Choosing policies</a><a href="retry-and-budget.html">Retry and budget</a><a href="rate-limiting.html">Rate limiting</a><a href="circuit-breaker.html">Circuit breaker</a><a href="bulkhead-and-cooldown.html">Bulkhead and cooldown</a><a href="fallback.html">Fallback</a><p>Errors and tests</p><a href="error-handling.html">Error handling</a><a href="testing.html">Testing with the virtual clock</a><p>Packages</p><a href="redis.html">Shared state with Redis</a><a href="guzzle.html" aria-current="page">Guzzle requests with Reqtide</a><p>Reference</p><a href="api-reference.html">API reference</a><a href="limits.html">Limits and non-guarantees</a><p>Trust and help</p><a href="comparison.html">Comparison with other libraries</a><a href="faq.html">FAQ</a></nav></details></aside>
+<article class="prose">
+<aside class="callout warn"><span class="callout-title">Alpha</span><p>The package <code>enaxon/reqtide-guzzle</code> is not released and not on Packagist. It works in the development repository and was run only in local Docker, on the command line, with the cURL handlers. PHP-FPM, Guzzle 8, the stream handler and PSR-18 are not supported. See <a href="limits.html">Limits and non-guarantees</a>.</p></aside>
+<p>Code blocks come from <a href="https://github.com/ehsanenaloo/reqtide/tree/main/packages/guzzle/examples" rel="noopener"><code>packages/guzzle/examples</code></a>. <code>tools/run-guzzle-examples.sh</code> runs those scripts and compares their output with the recorded output shown here. The scripts start a small fixture server on the loopback interface and print what the server received. In your code the request goes to your API.</p>
+<h2 id="install">Install<a class="anchor" href="#install" aria-label="Link to this section">#</a></h2>
+<aside class="callout warn"><span class="callout-title">Not on Packagist</span><p><code>composer require enaxon/reqtide-guzzle</code> does not work yet. There is no tagged release.</p></aside>
+<p>Use Composer path repositories, as in <a href="install.html">Install</a>. Register the clone once for the core package and once for the folder of this package:</p>
+<pre tabindex="0" role="group" aria-label="JSON"><code class="language-json">{
+    "repositories": [
+        { "type": "path", "url": "../reqtide", "options": { "symlink": false } },
+        { "type": "path", "url": "../reqtide/packages/guzzle", "options": { "symlink": false } }
+    ]
+}</code></pre>
+<pre tabindex="0" role="group" aria-label="Shell commands"><code class="language-bash">composer require "enaxon/reqtide:@dev" "enaxon/reqtide-guzzle:@dev"</code></pre>
+<p>The package needs PHP 8.3 or newer, the <code>curl</code> extension and <code>guzzlehttp/guzzle</code> 7.15.5 or newer in the 7.x line. It requires the same version of <code>enaxon/reqtide</code>. Name the core package too: the adapter requires the same dev version of it, and a project with the default minimum stability refuses it otherwise. Checked on 2026-10-11 with Composer 2 on PHP 8.3 in Docker, from a clone, with these path repositories.</p>
+<h2 id="wrap-a-call">Wrap a call<a class="anchor" href="#wrap-a-call" aria-label="Link to this section">#</a></h2>
+<p><code>ReqtideClient</code> is the entry point. It owns its cURL handlers and runs each logical operation, with all its attempts, through one compiled Core pipeline. You build the pipeline with <code>PipelineBuilder</code>, as in <a href="getting-started.html">Getting started</a>, and pass the builder to the client.</p>
+<ul><li><code>ReqtideClient::inMemory($builder, $configuration)</code> keeps the state in this process. Under PHP-FPM every request would start with fresh state.</li><li><code>ReqtideClient::withBackends($builder, rateLimit: ..., circuit: ..., ...)</code> takes the state backends you give it, for example the Redis backends from <a href="redis.html">Shared state with Redis</a>. Pass a backend for every policy the pipeline configures. The clock of the decisions is the clock of the backend.</li></ul>
+<p>Both take an optional <code>GuzzleConfiguration</code> and an optional <code>EventSink</code>. Each call takes an <code>HttpOperation</code> and a timeout for the whole operation. The timeout covers every attempt and every wait between attempts. Three methods run it:</p>
+<ul><li><code>send()</code> returns the response, or throws the failure of the operation.</li><li><code>sendDetailed()</code> returns an <code>ExecutionCompletion</code> with the summary of attempts and decisions instead of throwing.</li><li><code>sendAsync()</code> returns a promise. See <a href="#promises">Promises</a>.</li></ul>
+<details><summary>Imports for the snippets on this page</summary>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-k">use</span> Enaxon\Reqtide\Guzzle\HttpOperation;
+<span class="tk-k">use</span> Enaxon\Reqtide\Guzzle\HttpOutcomeClassifier;
+<span class="tk-k">use</span> Enaxon\Reqtide\Guzzle\ReqtideClient;
+<span class="tk-k">use</span> Enaxon\Reqtide\Guzzle\Tests\Support\FixtureServer;
+<span class="tk-k">use</span> Enaxon\Reqtide\Pipeline\PipelineBuilder;
+<span class="tk-k">use</span> Enaxon\Reqtide\Policy\AttemptTimeoutRequirement;
+<span class="tk-k">use</span> Enaxon\Reqtide\Policy\BackoffMode;
+<span class="tk-k">use</span> Enaxon\Reqtide\Policy\JitterMode;
+<span class="tk-k">use</span> Enaxon\Reqtide\Value\Duration;
+<span class="tk-k">use</span> GuzzleHttp\Psr7\Request;</code></pre>
+</details>
+<p>The first example sends a GET to a healthy server and to a server that always answers 503. The pipeline allows three attempts, 20 ms apart, with a retry budget:</p>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-v">$server</span> = FixtureServer::start();
+
+<span class="tk-v">$client</span> = ReqtideClient::inMemory(
+    PipelineBuilder::profile(<span class="tk-s">'orders-api'</span>, <span class="tk-s">'v1'</span>)
+        -&gt;partition(<span class="tk-s">'shop'</span>, <span class="tk-s">'prod'</span>, <span class="tk-s">'orders-api'</span>)
+        <span class="tk-c">// The transport enforces this timeout on every attempt.</span>
+        -&gt;attemptTimeout(Duration::seconds(<span class="tk-n">2</span>), AttemptTimeoutRequirement::TransportEnforced)
+        <span class="tk-c">// Up to three attempts, 20 ms apart, and a budget so that a failing server is not hammered.</span>
+        -&gt;retry(<span class="tk-n">3</span>, BackoffMode::Constant, Duration::milliseconds(<span class="tk-n">20</span>), Duration::seconds(<span class="tk-n">1</span>), JitterMode::None)
+        -&gt;retryBudget(<span class="tk-n">10</span>, <span class="tk-n">10</span>, Duration::seconds(<span class="tk-n">60</span>), Duration::seconds(<span class="tk-n">12</span>)),
+);
+
+<span class="tk-v">$read</span> = <span class="tk-k">static</span> <span class="tk-k">fn</span>(<span class="tk-k">string</span> <span class="tk-v">$path</span>): HttpOperation =&gt; HttpOperation::read(
+    <span class="tk-k">new</span> Request(<span class="tk-s">'GET'</span>, <span class="tk-v">$server</span>-&gt;baseUri . <span class="tk-v">$path</span>),
+    <span class="tk-s">'orders.read'</span>,
+    Duration::seconds(<span class="tk-n">60</span>),
+    HttpOutcomeClassifier::starter()-&gt;retryableOutcomeCodes(),
+);</code></pre>
+<p>The numbers in the output are the server's own count of the requests it received:</p>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-v">$response</span> = <span class="tk-v">$client</span>-&gt;send(<span class="tk-v">$read</span>(<span class="tk-s">'/status/200'</span>), Duration::seconds(<span class="tk-n">10</span>));
+<span class="tk-k">echo</span> <span class="tk-s">'healthy server: status '</span>, <span class="tk-v">$response</span>-&gt;getStatusCode(), <span class="tk-s">', requests at the server: '</span>, <span class="tk-v">$server</span>-&gt;count(<span class="tk-s">'/status/200'</span>), <span class="tk-s">"\n"</span>;
+
+<span class="tk-v">$response</span> = <span class="tk-v">$client</span>-&gt;send(<span class="tk-v">$read</span>(<span class="tk-s">'/status/503'</span>), Duration::seconds(<span class="tk-n">10</span>));
+<span class="tk-k">echo</span> <span class="tk-s">'failing server: status '</span>, <span class="tk-v">$response</span>-&gt;getStatusCode(), <span class="tk-s">', requests at the server: '</span>, <span class="tk-v">$server</span>-&gt;count(<span class="tk-s">'/status/503'</span>), <span class="tk-s">"\n"</span>;
+
+<span class="tk-v">$completion</span> = <span class="tk-v">$client</span>-&gt;sendDetailed(<span class="tk-v">$read</span>(<span class="tk-s">'/status/503'</span>), Duration::seconds(<span class="tk-n">10</span>));
+<span class="tk-k">echo</span> <span class="tk-s">'detailed: '</span>, <span class="tk-v">$completion</span>-&gt;summary-&gt;dispatched, <span class="tk-s">' dispatched, '</span>, <span class="tk-v">$completion</span>-&gt;summary-&gt;retries, <span class="tk-s">' retries, disposition '</span>, <span class="tk-v">$completion</span>-&gt;disposition-&gt;value, <span class="tk-s">"\n"</span>;</code></pre>
+<pre class="output" tabindex="0" role="group" aria-label="Output"><code class="language-text-output">healthy server: status 200, requests at the server: 1
+failing server: status 503, requests at the server: 3
+detailed: 3 dispatched, 2 retries, disposition failed</code></pre>
+<p>The 503 is not an exception. After the third attempt you get the last response back. <code>sendDetailed()</code> shows 3 dispatched attempts and 2 retries. <code>attemptTimeout()</code> is declared as <code>TransportEnforced</code> because the cURL timeouts enforce it.</p>
+<h2 id="what-may-be-sent-twice">What may be sent twice<a class="anchor" href="#what-may-be-sent-twice" aria-label="Link to this section">#</a></h2>
+<p>Reqtide does not guess from the method or from a header. Each operation states whether it may be sent again. Three constructors on <code>HttpOperation</code> make that statement:</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Table, scrolls sideways on narrow screens"><table><thead><tr><th scope="col">Constructor</th><th scope="col">Use it for</th><th scope="col">What you state</th></tr></thead><tbody><tr><td><code>HttpOperation::read()</code></td><td>GET and HEAD</td><td>Repeating the request has no side effect (an RFC 9110 safe method), for the time you give as <code>validFor</code>.</td></tr><tr><td><code>HttpOperation::idempotentMutation()</code></td><td>POST, PUT, PATCH and DELETE</td><td>The server deduplicates the request by an identity, such as an <code>Idempotency-Key</code>. You give the identity, what it is unique within, and how the server treats a repeat.</td></tr><tr><td><code>HttpOperation::single()</code></td><td>Everything else</td><td>Nothing. The request is sent once and never repeated.</td></tr></tbody></table></div>
+<ul><li><code>validFor</code> is how long your statement holds, counted from now. It must be at least as long as the deadline you pass to <code>send()</code>.</li><li>For a mutation, the same body and the same identity are sent on every attempt, and the identity is checked before each one. The default header is <code>Idempotency-Key</code>. Pass <code>identityHeader: null</code> when the identity travels elsewhere, and then you guarantee it stays the same. A header name has at most 64 letters, digits and hyphens. An identity value must not start or end with a space or a tab, because Guzzle trims header values.</li><li>Core refuses a <code>single()</code> operation in a pipeline that retries more than once. The refusal comes before anything is sent.</li></ul>
+<p>The second example sends a POST that the server answers with 503 each time. It checks the server's own log:</p>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-v">$profile</span> = <span class="tk-k">static</span> <span class="tk-k">fn</span>(<span class="tk-k">int</span> <span class="tk-v">$attempts</span>): PipelineBuilder =&gt; PipelineBuilder::profile(<span class="tk-s">'billing-api'</span>, <span class="tk-s">'v1'</span>)
+    -&gt;partition(<span class="tk-s">'shop'</span>, <span class="tk-s">'prod'</span>, <span class="tk-s">'billing-api'</span>)
+    -&gt;attemptTimeout(Duration::seconds(<span class="tk-n">2</span>), AttemptTimeoutRequirement::TransportEnforced)
+    -&gt;retry(<span class="tk-v">$attempts</span>, BackoffMode::Constant, Duration::milliseconds(<span class="tk-n">20</span>), Duration::seconds(<span class="tk-n">1</span>), JitterMode::None);
+
+<span class="tk-v">$retrying</span> = ReqtideClient::inMemory(<span class="tk-v">$profile</span>(<span class="tk-n">3</span>)-&gt;retryBudget(<span class="tk-n">10</span>, <span class="tk-n">10</span>, Duration::seconds(<span class="tk-n">60</span>), Duration::seconds(<span class="tk-n">12</span>)));
+<span class="tk-v">$once</span> = ReqtideClient::inMemory(<span class="tk-v">$profile</span>(<span class="tk-n">1</span>));
+
+<span class="tk-v">$charge</span> = HttpOperation::idempotentMutation(
+    <span class="tk-k">new</span> Request(<span class="tk-s">'POST'</span>, <span class="tk-v">$server</span>-&gt;baseUri . <span class="tk-s">'/status/503'</span>, [<span class="tk-s">'Idempotency-Key'</span> =&gt; <span class="tk-s">'order-1042'</span>], <span class="tk-s">'amount=1999&amp;currency=CAD'</span>),
+    <span class="tk-s">'billing.charge'</span>,
+    <span class="tk-s">'order-1042'</span>,
+    <span class="tk-s">'this account and endpoint'</span>,
+    <span class="tk-s">'returns the stored response for 24 hours'</span>,
+    Duration::seconds(<span class="tk-n">60</span>),
+    retryableOutcomeCodes: HttpOutcomeClassifier::starter()-&gt;retryableOutcomeCodes(),
+);
+<span class="tk-v">$response</span> = <span class="tk-v">$retrying</span>-&gt;send(<span class="tk-v">$charge</span>, Duration::seconds(<span class="tk-n">10</span>));</code></pre>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-v">$log</span> = <span class="tk-v">$server</span>-&gt;log();
+<span class="tk-v">$bodies</span> = array_unique(array_column(<span class="tk-v">$log</span>, <span class="tk-s">'bodySha1'</span>));
+<span class="tk-v">$keys</span> = array_unique(array_map(<span class="tk-k">static</span> <span class="tk-k">fn</span>(<span class="tk-k">array</span> <span class="tk-v">$entry</span>): <span class="tk-k">string</span> =&gt; implode(<span class="tk-s">','</span>, <span class="tk-v">$entry</span>[<span class="tk-s">'headers'</span>][<span class="tk-s">'idempotency-key'</span>] ?? []), <span class="tk-v">$log</span>));
+<span class="tk-k">echo</span> <span class="tk-s">'server answered '</span>, <span class="tk-v">$response</span>-&gt;getStatusCode(), <span class="tk-s">' to '</span>, count(<span class="tk-v">$log</span>), <span class="tk-s">' attempts'</span>, <span class="tk-s">"\n"</span>;
+<span class="tk-k">echo</span> <span class="tk-s">'same body every time: '</span>, count(<span class="tk-v">$bodies</span>) === <span class="tk-n">1</span> ? <span class="tk-s">'yes'</span> : <span class="tk-s">'no'</span>, <span class="tk-s">"\n"</span>;
+<span class="tk-k">echo</span> <span class="tk-s">'same key every time: '</span>, <span class="tk-v">$keys</span> === [<span class="tk-s">'order-1042'</span>] ? <span class="tk-s">'yes'</span> : <span class="tk-s">'no'</span>, <span class="tk-s">"\n"</span>;
+
+<span class="tk-v">$server</span>-&gt;reset();
+<span class="tk-v">$single</span> = HttpOperation::single(<span class="tk-k">new</span> Request(<span class="tk-s">'POST'</span>, <span class="tk-v">$server</span>-&gt;baseUri . <span class="tk-s">'/status/503'</span>, [], <span class="tk-s">'amount=1999'</span>), <span class="tk-s">'billing.charge'</span>);
+<span class="tk-v">$once</span>-&gt;send(<span class="tk-v">$single</span>, Duration::seconds(<span class="tk-n">10</span>));
+<span class="tk-k">echo</span> <span class="tk-s">'a single operation: '</span>, count(<span class="tk-v">$server</span>-&gt;log()), <span class="tk-s">" request\n"</span>;
+
+<span class="tk-k">try</span> {
+    <span class="tk-v">$retrying</span>-&gt;send(<span class="tk-v">$single</span>, Duration::seconds(<span class="tk-n">10</span>));
+} <span class="tk-k">catch</span> (InvalidConfigurationException) {
+    <span class="tk-k">echo</span> <span class="tk-s">'a single operation in a retrying pipeline is refused before anything is sent: '</span>, count(<span class="tk-v">$server</span>-&gt;log()), <span class="tk-s">" request in all\n"</span>;
+}</code></pre>
+<pre class="output" tabindex="0" role="group" aria-label="Output"><code class="language-text-output">server answered 503 to 3 attempts
+same body every time: yes
+same key every time: yes
+a single operation: 1 request
+a single operation in a retrying pipeline is refused before anything is sent: 1 request in all</code></pre>
+<p>The mutation was sent three times with the same body and the same key. The <code>single()</code> operation was sent once in a pipeline that allows one attempt, and it was refused with <code>InvalidConfigurationException</code> in the pipeline that retries.</p>
+<aside class="callout warn"><span class="callout-title">Your statement is the safety</span><p>If you call <code>read()</code> for a request that does change something, or <code>idempotentMutation()</code> for a server that does not deduplicate, Reqtide sends it again. It cannot check the claim. The server must make the repeat harmless.</p></aside>
+<h2 id="retryable-outcomes">Retryable outcomes<a class="anchor" href="#retryable-outcomes" aria-label="Link to this section">#</a></h2>
+<p>A retry needs the three things described in <a href="retry-and-budget.html">Retry and budget</a>: your statement that repeating is safe, a retry budget, and a classifier that marks the outcome as eligible. Here the statement is the operation you build, the budget is <code>retryBudget()</code> on the pipeline, and the classifier is <code>HttpOutcomeClassifier</code>. HTTP adds one more check: the reason code of the outcome must be in the list you give to the operation. That list is the <code>$retryableOutcomeCodes</code> argument of <code>read()</code> and <code>idempotentMutation()</code>.</p>
+<aside class="callout warn"><span class="callout-title">An empty list never retries</span><p>The default of <code>$retryableOutcomeCodes</code> is an empty list. With the default, a pipeline that retries never retries. It only reports the reason <code>outcome_not_retryable</code>. Pass <code>HttpOutcomeClassifier::starter()->retryableOutcomeCodes()</code> or your own list. If you build your own classifier, take the codes from that classifier.</p></aside>
+<p><code>HttpOutcomeClassifier::starter()</code> is a documented starting set. It is not a recommendation for every API. <code>HttpOutcomeClassifier::empty()</code> retries and falls back on nothing and reads no <code>Retry-After</code>. Both return a new classifier from every <code>with...()</code> call. Nothing is inferred from the status class. These are the starter rules:</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Table, scrolls sideways on narrow screens"><table><thead><tr><th scope="col">Outcome</th><th scope="col">Eligible for retry</th><th scope="col">Counts for the circuit</th><th scope="col">Reason code</th></tr></thead><tbody><tr><td>Status below 400</td><td>No</td><td>Success</td><td><code>http_status_&lt;code&gt;</code></td></tr><tr><td>408, 502, 503, 504</td><td>Yes</td><td>Failure</td><td><code>http_status_&lt;code&gt;</code></td></tr><tr><td>429</td><td>Yes</td><td>Neutral (handled through <code>Retry-After</code> and the cooldown)</td><td><code>http_status_429</code></td></tr><tr><td>500</td><td>No</td><td>Failure</td><td><code>http_status_500</code></td></tr><tr><td>Any other 4xx or 5xx</td><td>No</td><td>Success</td><td><code>http_status_&lt;code&gt;</code></td></tr><tr><td>Transport error 6, 7, 28, 52, 55 or 56</td><td>Yes</td><td>Failure</td><td><code>http_transport_errno_&lt;n&gt;</code></td></tr><tr><td>TLS or certificate error</td><td>No</td><td>Failure</td><td><code>http_transport_errno_&lt;n&gt;</code></td></tr><tr><td>Malformed or unsupported request</td><td>No</td><td>Neutral</td><td><code>http_transport_errno_&lt;n&gt;</code></td></tr><tr><td>Any other transport error</td><td>No</td><td>Failure</td><td><code>http_transport_errno_&lt;n&gt;</code></td></tr></tbody></table></div>
+<p>A 4xx other than 408 and 429 shows that the server is alive and judged the request, so it is never retried and it closes a half-open circuit. A 500 is not retried by default because it often means a defect that repeats. Add it with <code>withRetryableStatuses()</code> if your API says otherwise. TLS and certificate errors and malformed-request errors can never be made retryable. No status is eligible for a fallback in the starter set. An exception that carries a response is classified exactly like the response.</p>
+<h2 id="bodies">Request bodies and replay<a class="anchor" href="#bodies" aria-label="Link to this section">#</a></h2>
+<p>A request that may be sent again needs a body that can be sent again:</p>
+<ul><li>A seekable body is rewound to position 0 and checked before each attempt.</li><li>A body that cannot be rewound needs a body factory: a closure that returns a fresh stream of known size each time. Pass it as <code>bodyFactory</code>.</li><li>Anything else is refused before the first request.</li></ul>
+<p>A <code>single()</code> operation may have a body that cannot be rewound, because it is sent once. A request with a body of known size gets an empty <code>Expect</code> header, unless it already has one, so cURL does not wait for <code>100 Continue</code>.</p>
+<h2 id="responses">Responses, failures, redirects and timeouts<a class="anchor" href="#responses" aria-label="Link to this section">#</a></h2>
+<ul><li><strong>A 4xx or 5xx status is a response.</strong> After the last attempt you get the last response. <code>http_errors</code> is forced off for every transfer.</li><li><strong>A transport failure</strong> (refused connection, timeout) is the original Guzzle exception, unless a policy ends the operation first. Its message holds the full URL. It is your result and it is returned as it is.</li><li><strong>Policy refusals</strong> (rate limit, circuit, bulkhead, cooldown) are Reqtide exceptions. See <a href="error-handling.html">Error handling</a>.</li><li><strong>Redirects are not followed.</strong> A 3xx is a response, and its target is never requested. <code>allow_redirects</code> is forced off and cannot be set.</li><li><strong>Timeouts.</strong> The timeout of an attempt is the smaller of your attempt timeout and the time left in the operation. It goes to cURL as <code>timeout</code> and <code>connect_timeout</code>. <code>read_timeout</code> is never used, because the cURL handlers ignore it.</li></ul>
+<h2 id="retry-after">Retry-After and the shared cooldown<a class="anchor" href="#retry-after" aria-label="Link to this section">#</a></h2>
+<p>The classifier reads <code>Retry-After</code> for 429 and 503 responses. Change the list with <code>withRetryAfterStatuses()</code>. The value can be a number of seconds or an HTTP date (the IMF-fixdate form, or the older RFC 850 and asctime forms). A value that cannot be read, or one beyond the range of the shared-state duration (9,007,199,254 seconds), is dropped and gives no wait. It is never cut down or invented. With several header lines, the greatest valid delay wins. Clock skew between the server and your host remains a limit of date values.</p>
+<p>The wait is used in two ways. It is a lower bound for the next attempt of this operation: Reqtide never sends sooner. A wait that does not fit the maximum delay of the retry policy or the deadline defers the operation and returns the wait to you. With a <code>cooldown()</code> policy in the pipeline, a positive wait also starts a shared pause for the partition, so the next calls are deferred without a request. The third example shows this:</p>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-v">$client</span> = ReqtideClient::inMemory(
+    PipelineBuilder::profile(<span class="tk-s">'search-api'</span>, <span class="tk-s">'v1'</span>)
+        -&gt;partition(<span class="tk-s">'shop'</span>, <span class="tk-s">'prod'</span>, <span class="tk-s">'search-api'</span>)
+        -&gt;attemptTimeout(Duration::seconds(<span class="tk-n">2</span>), AttemptTimeoutRequirement::TransportEnforced)
+        -&gt;retry(<span class="tk-n">1</span>, BackoffMode::Constant, Duration::milliseconds(<span class="tk-n">20</span>), Duration::seconds(<span class="tk-n">1</span>), JitterMode::None)
+        <span class="tk-c">// How long the cooldown record is kept after it has ended.</span>
+        -&gt;cooldown(Duration::seconds(<span class="tk-n">60</span>)),
+);
+
+<span class="tk-v">$read</span> = <span class="tk-k">static</span> <span class="tk-k">fn</span>(<span class="tk-k">string</span> <span class="tk-v">$path</span>): HttpOperation =&gt; HttpOperation::read(
+    <span class="tk-k">new</span> Request(<span class="tk-s">'GET'</span>, <span class="tk-v">$server</span>-&gt;baseUri . <span class="tk-v">$path</span>),
+    <span class="tk-s">'search.read'</span>,
+    Duration::seconds(<span class="tk-n">60</span>),
+    HttpOutcomeClassifier::starter()-&gt;retryableOutcomeCodes(),
+);</code></pre>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-v">$explanation</span> = <span class="tk-v">$client</span>-&gt;explain();
+<span class="tk-k">echo</span> <span class="tk-s">'policies: '</span>, implode(<span class="tk-s">', '</span>, <span class="tk-v">$explanation</span>-&gt;enabledPolicies), <span class="tk-s">"\n"</span>;
+<span class="tk-k">echo</span> <span class="tk-s">'requests after explain(): '</span>, count(<span class="tk-v">$server</span>-&gt;log()), <span class="tk-s">"\n"</span>;
+
+<span class="tk-v">$response</span> = <span class="tk-v">$client</span>-&gt;send(<span class="tk-v">$read</span>(<span class="tk-s">'/status/429?ra=30'</span>), Duration::seconds(<span class="tk-n">5</span>));
+<span class="tk-k">echo</span> <span class="tk-s">'throttled: status '</span>, <span class="tk-v">$response</span>-&gt;getStatusCode(), <span class="tk-s">', requests at the server: '</span>, count(<span class="tk-v">$server</span>-&gt;log()), <span class="tk-s">"\n"</span>;
+
+<span class="tk-v">$completion</span> = <span class="tk-v">$client</span>-&gt;sendDetailed(<span class="tk-v">$read</span>(<span class="tk-s">'/status/200'</span>), Duration::seconds(<span class="tk-n">1</span>));
+<span class="tk-k">echo</span> <span class="tk-s">'next call during the cooldown: '</span>, <span class="tk-v">$completion</span>-&gt;disposition-&gt;value, <span class="tk-s">', requests at the server: '</span>, count(<span class="tk-v">$server</span>-&gt;log()), <span class="tk-s">"\n"</span>;
+<span class="tk-k">echo</span> <span class="tk-s">'reason: '</span>, <span class="tk-v">$completion</span>-&gt;problem()?-&gt;code-&gt;value ?? <span class="tk-s">'none'</span>, <span class="tk-s">"\n"</span>;</code></pre>
+<pre class="output" tabindex="0" role="group" aria-label="Output"><code class="language-text-output">policies: attempt, retry(maxAttempts=1), cooldown
+requests after explain(): 0
+throttled: status 429, requests at the server: 1
+next call during the cooldown: deferred, requests at the server: 1
+reason: cooldown_exceeds_deadline</code></pre>
+<p>The 429 carried <code>Retry-After: 30</code>. The next call, with a deadline of 1 second, was deferred at once and the server's count stayed at 1. The reason is <code>cooldown_exceeds_deadline</code> because 30 seconds do not fit in the 1 second deadline. With a longer deadline the reason is <code>cooldown_active</code>. <code>explain()</code> sent nothing.</p>
+<h3 id="the-cooldown-maximum">The cooldown maximum</h3>
+<p>A server can send a very long <code>Retry-After</code>, by fault or on purpose. The core cooldown policy caps the shared pause that one reported wait can start. The default cap is 3,600 seconds (one hour). A longer wait still governs the retry of the operation that received it, but the pause other operations see is cut to the cap. Set your own cap with the second argument of <code>PipelineBuilder::cooldown($cleanupGrace, $maximumExtension)</code>. See <a href="bulkhead-and-cooldown.html">Bulkhead and cooldown</a>.</p>
+<h2 id="client-defaults">Client defaults<a class="anchor" href="#client-defaults" aria-label="Link to this section">#</a></h2>
+<p><code>GuzzleConfiguration::$clientDefaults</code> accepts only these Guzzle options:</p>
+<p><code>headers</code>, <code>auth</code>, <code>proxy</code>, <code>verify</code>, <code>cert</code>, <code>ssl_key</code>, <code>crypto_method</code>, <code>force_ip_resolve</code>, <code>version</code> and <code>decode_content</code>.</p>
+<ul><li><code>headers</code> only fill in headers that a request does not have, so they cannot change the identity header that is checked on each attempt.</li><li>Any other option is refused with an <code>InvalidConfigurationException</code> that names it. Examples are <code>delay</code>, <code>query</code>, <code>body</code>, <code>json</code>, <code>sink</code>, <code>curl</code>, <code>cookies</code>, <code>on_headers</code>, <code>on_stats</code>, <code>timeout</code>, <code>base_uri</code> and <code>handler</code>.</li><li>The reason: a client default applies to every transfer, outside the replay checks and outside the deadline. A default <code>delay</code> would sleep beyond the deadline. A default <code>curl</code> could replace the timeouts and the connection rules below.</li></ul>
+<p>Put per-request values in the request. The client builds and owns its handlers: <code>CurlHandler</code> for <code>send()</code> and <code>CurlMultiHandler</code> for <code>sendAsync()</code>. You cannot pass a handler.</p>
+<h2 id="connections">Connection reuse<a class="anchor" href="#connections" aria-label="Link to this section">#</a></h2>
+<p>libcurl can send a request again on a new connection, whatever its method, when a reused keep-alive connection gives no bytes back. Reqtide cannot see that second dispatch. So the rule is:</p>
+<ul><li>A <code>single()</code> operation sets <code>CURLOPT_FRESH_CONNECT</code> and <code>CURLOPT_FORBID_REUSE</code>, and nothing can override it. The cost is a new TCP and TLS handshake for every such request.</li><li>A <code>read()</code> and an <code>idempotentMutation()</code> may reuse connections, because a repeat of them is safe by your own statement.</li></ul>
+<p>One risk stays: a retry that your own proxy or load balancer makes behind the connection is not visible here.</p>
+<h2 id="promises">Promises<a class="anchor" href="#promises" aria-label="Link to this section">#</a></h2>
+<p><code>sendAsync()</code> returns a promise that settles only after the whole operation has ended, finalization included. It is lazy. Guzzle has no event loop, so the operation runs when you call <code>wait()</code>, one operation at a time.</p>
+<ul><li>While it waits, the driver runs the process-wide Guzzle promise task queue. Unrelated promise callbacks of your program also run inside the deadline loop.</li><li>There is no claim of concurrent operations, of completion without a <code>wait()</code>, or of a guaranteed stop of a running transfer.</li><li>Cancelling asks the transport to stop. It does not prove that it stopped. Pass a <code>Cancellation</code> to <code>send()</code>, <code>sendDetailed()</code> or <code>sendAsync()</code>.</li><li>The synchronous and the promise runtime share the same policy state.</li></ul>
+<h2 id="secrets">Secrets and what events carry<a class="anchor" href="#secrets" aria-label="Link to this section">#</a></h2>
+<p>Events, summaries, diagnostics and problems carry descriptor fields only: the method, a fingerprint of the origin, your operation group, and a keyed fingerprint of the credential key you pass as <code>credentialKey</code>. They never carry a URL, a query, a header or a body. Random secrets were placed in all of those and searched for in everything Reqtide produces, and in Redis keys and values, with no hit.</p>
+<p>Two things are outside that promise:</p>
+<ul><li>The exception that Guzzle throws for a transport failure holds the full URL. It is your result, and it is returned as it is.</li><li>Stack traces can hold arguments. Set <code>zend.exception_ignore_args=On</code> in production.</li></ul>
+<h2 id="uri">uri() and the base URI<a class="anchor" href="#uri" aria-label="Link to this section">#</a></h2>
+<p>Give <code>GuzzleConfiguration</code> an absolute http or https <code>baseUri</code>. <code>$client->uri('/orders/42')</code> resolves a reference against it as RFC 3986 says, and the request of an <code>HttpOperation</code> needs that absolute result. A malformed reference throws <code>InvalidConfigurationException</code>.</p>
+<aside class="callout warn"><span class="callout-title">The base URI is not a security boundary</span><p>An absolute reference, or one that starts with <code>//</code>, replaces the base host. A reference <code>orders</code> against <code>https://h/v1</code> gives <code>https://h/orders</code>. Reqtide does not check where a request goes. Keep requests to internal addresses out with your network egress rules.</p></aside>
+<h2 id="limits">Limits and cost<a class="anchor" href="#limits" aria-label="Link to this section">#</a></h2>
+<ul><li><strong>No cap on the response size.</strong> A hostile or faulty server can fill temporary storage within the timeout window. Use a <code>sink</code> or limits in your own layer.</li><li><strong>Process-wide task queue.</strong> A promise wait runs unrelated Guzzle callbacks. See <a href="#promises">Promises</a>.</li><li><strong>Not supported:</strong> PSR-18, Guzzle 8, the stream handler, streaming bodies and PHP-FPM. Only the cURL handlers are used, and you cannot pass a handler.</li><li><strong>Shared state</strong> needs backends such as the Redis ones. <code>inMemory()</code> keeps limits in the process. Shared limits, circuit and cooldown across processes were tested with up to 6 processes.</li><li><strong>First request.</strong> The client loads about 100 to 150 more files than bare Guzzle. Use an optimized autoloader and OPcache in production.</li></ul>
+<h3 id="cost">Cost</h3>
+<p>These figures were measured on one laptop under Docker Desktop. The run-to-run noise was large. They are no claim about your system. A call through the client with in-memory state added about 30 to 130 microseconds to a bare Guzzle call with one policy set, and about 135 to 235 microseconds with five. The first request of a process took 14 ms with bare Guzzle and 26 to 35 ms with the client when the sources were on a local disk. With the sources on a slow bind mount, the first request took 0.6 to 1 second.</p>
+<h2 id="related">Related<a class="anchor" href="#related" aria-label="Link to this section">#</a></h2>
+<ul><li><a href="retry-and-budget.html">Retry and budget</a> explains the safety statement and the retry budget in Core.</li><li><a href="redis.html">Shared state with Redis</a> shows the backends for <code>withBackends()</code>.</li><li><a href="api-reference.html#guzzle-package">API reference</a> lists the classes of this package.</li></ul>
+<div class="reading-footer"><a class="prev" href="redis.html"><small>Previous</small>Shared state with Redis</a><a class="next" href="api-reference.html"><small>Next</small>API reference</a></div>
+</article>
+<nav class="toc" aria-label="On this page"><p>On this page</p><ol><li><a href="#install">Install</a></li><li><a href="#wrap-a-call">Wrap a call</a></li><li><a href="#what-may-be-sent-twice">What may be sent twice</a></li><li><a href="#retryable-outcomes">Retryable outcomes</a></li><li><a href="#bodies">Request bodies and replay</a></li><li><a href="#responses">Responses, failures, redirects and timeouts</a></li><li><a href="#retry-after">Retry-After and the shared cooldown</a></li><li><a href="#client-defaults">Client defaults</a></li><li><a href="#connections">Connection reuse</a></li><li><a href="#promises">Promises</a></li><li><a href="#secrets">Secrets and what events carry</a></li><li><a href="#uri">uri() and the base URI</a></li><li><a href="#limits">Limits and cost</a></li><li><a href="#related">Related</a></li></ol></nav>
+</div>
+</main>
+<footer class="footer"><div class="shell footer-inner"><p>Reqtide PHP documentation &middot; MIT licensed &middot; Maintained by Ehsan Enaloo</p><div><a href="../guides/limits.html">Limits</a><a href="../guides/faq.html">FAQ</a><a href="https://github.com/ehsanenaloo/reqtide" rel="noopener">Source repository &#8599;</a></div></div></footer>
+</body>
+</html>

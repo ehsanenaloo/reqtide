@@ -1,0 +1,47 @@
+name: Feature request
+description: Suggest a capability or a change to a documented contract
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the limits page in the [documentation](https://github.com/ehsanenaloo/reqtide/tree/main/docs) first. The alpha leaves some things out on purpose.
+        A request is not a promise to build it. The core has no runtime dependencies, and a request that needs one will be treated as a separate package.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what is missing?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the behavior. Include failure and concurrency cases if they matter. Example calls help.
+      render: php
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Core
+        - Testing helpers
+        - Redis state package
+        - Guzzle package
+        - Documentation
+        - Tooling or CI
+    validations:
+      required: true
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to open a pull request for this.

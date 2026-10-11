@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en" dir="ltr" data-root="../">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install | Reqtide PHP documentation</title>
+<meta name="description" content="Install Reqtide PHP from a clone with a Composer path repository, or run the examples in Docker. Packagist is not available yet.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0f5c99">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Install | Reqtide PHP documentation">
+<meta property="og:description" content="Install Reqtide PHP from a clone with a Composer path repository, or run the examples in Docker. Packagist is not available yet.">
+<meta name="twitter:card" content="summary">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../styles.css">
+<script>try{var t=localStorage.getItem("rt-docs-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+<script defer src="../app.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a><header class="site-header"><div class="shell header-inner"><a class="brand" href="../index.html"><img src="../assets/logo.svg" width="34" height="34" alt=""><span>Reqtide PHP<small>Documentation</small></span></a><nav class="top-nav" aria-label="Primary"><a href="../index.html">Overview</a><a href="../guides/getting-started.html">Getting started</a><a href="../guides/index.html">All guides</a><a href="../guides/api-reference.html">API reference</a><a href="../guides/faq.html">FAQ</a><a href="https://github.com/ehsanenaloo/reqtide" rel="noopener">GitHub &#8599;</a></nav><div class="header-tools"><span data-search-host></span><button type="button" class="icon-button" data-theme-toggle hidden>Theme</button></div></div></header>
+<main id="main">
+<div class="shell page-intro"><p class="breadcrumbs"><a href="../index.html">Home</a> / <a href="index.html">Guides</a> / Get started</p><h1>Install</h1><p class="lead">After this page you have Reqtide PHP available in a Composer project, or you can run its examples in Docker without installing PHP.</p><p class="meta-line">Applies to the unreleased alpha (no version number yet). Checked 2026-10-09.</p></div>
+<div class="shell doc-layout has-toc">
+<aside class="sidebar"><details open><summary>Browse the guides</summary><nav aria-label="Guides"><a href="index.html">All guides</a><p>Get started</p><a href="install.html" aria-current="page">Install</a><a href="getting-started.html">Getting started</a><p>Core ideas</p><a href="concepts.html">Concepts</a><p>Protections</p><a href="choosing-policies.html">Choosing policies</a><a href="retry-and-budget.html">Retry and budget</a><a href="rate-limiting.html">Rate limiting</a><a href="circuit-breaker.html">Circuit breaker</a><a href="bulkhead-and-cooldown.html">Bulkhead and cooldown</a><a href="fallback.html">Fallback</a><p>Errors and tests</p><a href="error-handling.html">Error handling</a><a href="testing.html">Testing with the virtual clock</a><p>Packages</p><a href="redis.html">Shared state with Redis</a><a href="guzzle.html">Guzzle requests with Reqtide</a><p>Reference</p><a href="api-reference.html">API reference</a><a href="limits.html">Limits and non-guarantees</a><p>Trust and help</p><a href="comparison.html">Comparison with other libraries</a><a href="faq.html">FAQ</a></nav></details></aside>
+<article class="prose">
+<aside class="callout warn"><span class="callout-title">Alpha</span><p>The package <code>enaxon/reqtide</code> is not on Packagist, so <code>composer require enaxon/reqtide</code> does not work yet. There is no tagged release.</p></aside>
+<h2 id="what-works-today">What works today<a class="anchor" href="#what-works-today" aria-label="Link to this section">#</a></h2>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Table, scrolls sideways on narrow screens"><table><thead><tr><th scope="col">Route</th><th scope="col">Status</th><th scope="col">Notes</th></tr></thead><tbody><tr><td>Composer path repository, from a clone</td><td>Works</td><td>Checked on 2026-10-09 with Composer 2 on PHP 8.3 in Docker. This is the route below.</td></tr><tr><td>Composer VCS repository (straight from GitHub)</td><td>Not checked</td><td>Needs the public repository to contain the package layout. Use the path repository until this page says otherwise.</td></tr><tr><td>Packagist (<code>composer require enaxon/reqtide</code>)</td><td>Not available</td><td>The package is not submitted.</td></tr><tr><td>PHP 8.3, 8.4, 8.5</td><td>Checked in Docker</td><td>Command line only. See <a href="limits.html">Limits and non-guarantees</a>.</td></tr><tr><td>PHP-FPM, Apache, other web servers</td><td>Not run</td><td>State is process-local, so read <a href="limits.html">Limits and non-guarantees</a> before you use it in a web request.</td></tr><tr><td><code>enaxon/reqtide-redis</code> and <code>enaxon/reqtide-guzzle</code></td><td>Development repository only</td><td>Separate packages, not part of the archive of <code>enaxon/reqtide</code>. Not released, not on Packagist, run only in local Docker. Install steps are in <a href="redis.html">Shared state with Redis</a> and <a href="guzzle.html">Guzzle requests with Reqtide</a>. See also <a href="limits.html">Limits and non-guarantees</a>.</td></tr></tbody></table></div>
+<h2 id="requirements">Requirements<a class="anchor" href="#requirements" aria-label="Link to this section">#</a></h2>
+<ul><li>PHP 8.3 or newer on a 64-bit build (<code>php-64bit</code>).</li><li>Composer 2.</li><li>No other runtime dependencies. <code>composer.json</code> requires only <code>php</code> and <code>php-64bit</code>.</li></ul>
+<h2 id="install-from-a-clone">Install from a clone<a class="anchor" href="#install-from-a-clone" aria-label="Link to this section">#</a></h2>
+<h3 id="step-1-clone-the-repository">Step 1: Clone the repository</h3>
+<p>Clone it next to your project:</p>
+<pre tabindex="0" role="group" aria-label="Shell commands"><code class="language-bash">git clone https://github.com/ehsanenaloo/reqtide.git</code></pre>
+<h3 id="step-2-register-the-clone-as-a-path-repository">Step 2: Register the clone as a path repository</h3>
+<p>In your project's <code>composer.json</code>, add the repository. <code>symlink: false</code> makes Composer copy the package into <code>vendor/</code> instead of linking it:</p>
+<pre tabindex="0" role="group" aria-label="JSON"><code class="language-json">{
+    "repositories": [
+        { "type": "path", "url": "../reqtide", "options": { "symlink": false } }
+    ]
+}</code></pre>
+<h3 id="step-3-require-the-package">Step 3: Require the package</h3>
+<pre tabindex="0" role="group" aria-label="Shell commands"><code class="language-bash">composer require "enaxon/reqtide:@dev"</code></pre>
+<p>The vendor name is <code>enaxon</code>. A different Packagist vendor, <code>naxon</code>, is one letter apart: copy the package name exactly and check the vendor before you run <code>composer require</code>.</p>
+<p>One package, <code>enaxon/reqtide</code>, contains the library (<code>Enaxon\Reqtide</code>) and the test helpers (<code>Enaxon\Reqtide\Testing</code>). The helpers are installed with it and are meant for tests only. The archive you install holds <code>src/</code>, <code>docs/</code>, <code>composer.json</code>, <code>README.md</code>, <code>LICENSE</code> and <code>CHANGELOG.md</code>. Tests, tools and examples stay in the repository.</p>
+<h2 id="try-it-without-installing-php">Try it without installing PHP<a class="anchor" href="#try-it-without-installing-php" aria-label="Link to this section">#</a></h2>
+<p>If you have Docker, run the examples inside the clone. No PHP or Composer is needed on your machine:</p>
+<pre tabindex="0" role="group" aria-label="Shell commands"><code class="language-bash">cd reqtide
+docker compose -f tools/docker/compose.yaml run --rm php83 composer install
+docker compose -f tools/docker/compose.yaml run --rm php83 php examples/06-getting-started.php</code></pre>
+<p>The output is:</p>
+<pre class="output" tabindex="0" role="group" aria-label="Output"><code class="language-text-output">ok on attempt 3
+invocations: 3</code></pre>
+<p>Use <code>php84</code> or <code>php85</code> in place of <code>php83</code> to try the other versions.</p>
+<h2 id="check-that-it-works">Check that it works<a class="anchor" href="#check-that-it-works" aria-label="Link to this section">#</a></h2>
+<p>Create <code>demo.php</code> in your project with the script from <a href="getting-started.html">Getting started</a> and run:</p>
+<pre tabindex="0" role="group" aria-label="Shell commands"><code class="language-bash">php demo.php</code></pre>
+<p>You should see the two lines above. If PHP reports <code>Class "Enaxon\Reqtide\Pipeline\PipelineBuilder" not found</code>, the autoloader line is missing or points to the wrong <code>vendor/</code> folder. If Composer reports that it cannot find <code>enaxon/reqtide</code>, check the <code>url</code> of the path repository.</p>
+<h2 id="read-these-docs-offline">Read these docs offline<a class="anchor" href="#read-these-docs-offline" aria-label="Link to this section">#</a></h2>
+<p>The <code>docs/</code> folder is a static site with no build step. Open <code>docs/index.html</code> in a browser, or serve it:</p>
+<pre tabindex="0" role="group" aria-label="Shell commands"><code class="language-bash">php -S 127.0.0.1:8766 -t docs</code></pre>
+<h2 id="next">Next<a class="anchor" href="#next" aria-label="Link to this section">#</a></h2>
+<ul><li><a href="getting-started.html">Getting started</a> builds your first pipeline.</li><li><a href="limits.html">Limits and non-guarantees</a> lists what the alpha does not do.</li></ul>
+<div class="reading-footer"><span></span><a class="next" href="getting-started.html"><small>Next</small>Getting started</a></div>
+</article>
+<nav class="toc" aria-label="On this page"><p>On this page</p><ol><li><a href="#what-works-today">What works today</a></li><li><a href="#requirements">Requirements</a></li><li><a href="#install-from-a-clone">Install from a clone</a></li><li><a href="#try-it-without-installing-php">Try it without installing PHP</a></li><li><a href="#check-that-it-works">Check that it works</a></li><li><a href="#read-these-docs-offline">Read these docs offline</a></li><li><a href="#next">Next</a></li></ol></nav>
+</div>
+</main>
+<footer class="footer"><div class="shell footer-inner"><p>Reqtide PHP documentation &middot; MIT licensed &middot; Maintained by Ehsan Enaloo</p><div><a href="../guides/limits.html">Limits</a><a href="../guides/faq.html">FAQ</a><a href="https://github.com/ehsanenaloo/reqtide" rel="noopener">Source repository &#8599;</a></div></div></footer>
+</body>
+</html>

@@ -1,0 +1,2210 @@
+{
+    "meta": {
+        "generated_at": "2026-10-09T06:33:57+00:00",
+        "php": "8.4.26",
+        "os": "Linux 6.18.40.1-microsoft-standard-WSL2",
+        "time_model": "virtual wall clock (Comparison\\VirtualTime); library code unmodified",
+        "libraries": [
+            {
+                "id": "reqtide",
+                "package": "enaxon/reqtide-core (packages/core)",
+                "version": "working tree (unreleased)",
+                "role": "Resilience pipeline for PHP HTTP clients: rate limiting, retry with deadline and Retry-After, circuit breaker, bulkhead.",
+                "not_enabled": "Only the process-local memory backends were exercised; the Redis backends are a separate package and are not part of this comparison. Real SystemClock/BoundedBlockingScheduler (VirtualClock + VirtualDelayScheduler used, runtime adapter is the real SynchronousRuntimeAdapter). JitterMode::None everywhere (jitter is optional; constant/exponential backoff only). Cooldown policy (shared Retry-After pause) not enabled in any scenario. Fallback operations and FallbackScope not used. EventSink is a NullEventSink except in S18. Pipelines are built through PipelineBuilder + CompiledPipeline (the identity generator is the library default; DeterministicIdentityGenerator is not injected because the public compile() path does not take one and observations contain no identifiers). Every required option with no default (attempt timeout 5 s unless a scenario says otherwise, leases, retry-budget size, probe settings) is chosen per scenario and named in its observation."
+            },
+            {
+                "id": "symfony-rate-limiter",
+                "package": "symfony/rate-limiter",
+                "version": "v8.1.6",
+                "role": "Rate limiting (token_bucket, fixed_window, sliding_window policies); admission decision via consume()/reserve().",
+                "not_enabled": "Lock factory (not needed for single-process InMemoryStorage), CacheStorage and compound limiters, sliding_window policy (a different algorithm than the scenarios target), reserve()->wait() blocking mode (scenarios use non-blocking consume())."
+            },
+            {
+                "id": "symfony-http-client",
+                "package": "symfony/http-client",
+                "version": "v8.1.8",
+                "role": "HTTP client with RetryableHttpClient (retry/backoff/jitter/Retry-After) and ThrottlingHttpClient decorators.",
+                "not_enabled": "max_duration / timeout request options (per-request, not enforced by MockHttpClient; see S01), custom RetryStrategyInterface implementations (e.g. one that caps delays), real transports (curl/native), RetryableHttpClient logger (only enabled in S18), multi-base_uri failover."
+            },
+            {
+                "id": "caseyamcl-guzzle-retry",
+                "package": "caseyamcl/guzzle_retry_middleware",
+                "version": "v3.0.0 (on guzzlehttp/guzzle 8.2.0)",
+                "role": "Guzzle middleware: retry on 429/503 with Retry-After support, optional give_up_after_secs.",
+                "not_enabled": "retry_on_methods (default \"*\" = all methods; restricting it is optional config not enabled in S05 default run), retry_on_timeout, max_allowable_timeout_secs, should_retry_callback, expose_retry_header, on_retry_callback (these are optional; only the options each scenario names were set)."
+            },
+            {
+                "id": "spatie-guzzle-rate-limiter",
+                "package": "spatie/guzzle-rate-limiter-middleware",
+                "version": "2.2.0 (on guzzlehttp/guzzle 8.2.0)",
+                "role": "Guzzle middleware that DELAYS (sleeps) requests to stay under N per second/minute (sliding log of timestamps).",
+                "not_enabled": "A custom persistent Store (default InMemoryStore is used; cross-process sharing needs a user-written Store), perMinute() limits (scenarios use perSecond)."
+            },
+            {
+                "id": "ackintosh-ganesha",
+                "package": "ackintosh/ganesha",
+                "version": "4.0.0",
+                "role": "Circuit breaker (Count and Rate strategies) with pluggable storage; Guzzle middleware and Symfony HttpClient wrapper.",
+                "not_enabled": "Redis/Memcached/MongoDB/APCu storage adapters (extensions/servers not present in the image; real Apcu adapter used over an in-process array store), GaneshaHttpClient (Symfony wrapper), custom failure detectors, storage-key customisation, Redis sliding time window (only the tumbling window supported by the Apcu adapter is exercised)."
+            },
+            {
+                "id": "matheus85-duat",
+                "package": "matheus85/duat",
+                "version": "v0.2.0",
+                "role": "Callable-wrapping pipeline: retry, circuit breaker, timeout (post-hoc deadline), bulkhead, fallback; PSR-14 events; in-memory/PSR-16/Redis state.",
+                "not_enabled": "RedisStore / Psr16Store (state backends not in the image; InMemoryStore with the virtual clock is used), PHP attributes / ProxyFactory, fallback(), jitter in Backoff (Backoff::constant used for determinism), event dispatcher (only enabled in S18)."
+            }
+        ],
+        "deprecations_in_vendor_code": [],
+        "harness_errors": 0
+    },
+    "scenarios": [
+        {
+            "id": "S01",
+            "domain": "retry",
+            "kind": "behaviour",
+            "title": "Total deadline spans retries and waits",
+            "setup": "Total deadline D=10s. Every attempt fails instantly (HTTP 503, no Retry-After). Backoff is a constant 4s. The retry COUNT limit is set high (>=10) so that only a time limit can stop the loop.",
+            "observed": "Start time of every attempt and the time the operation gave up.",
+            "expected": "No attempt starts at or after t=D, and the operation has returned by t=D (attempts at 0,4,8; the wait that would end at 12 is not started).",
+            "basis": "gRPC deadlines are absolute and cover the whole call including retries (grpc.io/docs/guides/deadlines; gRPC A6 retry design: maxAttempts and the call deadline both bind). Google SRE book, Handling Overload.",
+            "unsure": null
+        },
+        {
+            "id": "S02",
+            "domain": "retry",
+            "kind": "behaviour",
+            "title": "Retry-After larger than remaining deadline",
+            "setup": "Deadline D=10s. First response is 503 with Retry-After: 30. Count limit is not binding.",
+            "observed": "Time of any second request and the time the operation returned.",
+            "expected": "A second request is never sent before t=30 (not early) AND the operation returns by t=D (never blocks past the deadline). Together: exactly one request, returned at <= D (as a failure or a deferral).",
+            "basis": "RFC 9110 s10.2.3 (Retry-After: time the client should wait before a follow-up request); deadline semantics as in S01. Surveyed libraries wait uncapped, ignore, or retry early.",
+            "unsure": "RFC 9110 calls the 503 value an \"estimate\", so \"never send before\" is a client policy, not a protocol MUST. Retrying early would still be RFC-legal; it is treated as incorrect here because the server asked for a delay."
+        },
+        {
+            "id": "S03",
+            "domain": "retry",
+            "kind": "behaviour",
+            "title": "Retry-After honoured as a lower bound",
+            "setup": "First response 503 with Retry-After: 6; configured client backoff is a constant 2s. Second sub-case (informational): Retry-After: 1 with configured backoff 4s.",
+            "observed": "Gap between first and second request in each sub-case.",
+            "expected": "Primary: gap >= 6s when the header exceeds the backoff. Informational: with a header smaller than the configured backoff, a lower-bound reading yields gap >= 4s.",
+            "basis": "RFC 9110 s10.2.3; client practice (Dapr wanted the larger of the two; an OpenFGA SDK made the server value override).",
+            "unsure": "Only the primary sub-case decides PASS/FAIL. Whether the header may SHORTEN a configured backoff is contested in practice; the informational sub-case is reported but does not affect the verdict."
+        },
+        {
+            "id": "S04",
+            "domain": "retry",
+            "kind": "behaviour",
+            "title": "Retry budget bounds retry storms",
+            "setup": "1000 independent operations all fail with 503. Each operation is allowed up to 3 retries by its own per-operation limit. Delays are zero.",
+            "observed": "Total requests actually sent; extra = total - 1000 first attempts.",
+            "expected": "Aggregate extra traffic is bounded to <= 20% of first attempts (SRE guidance is ~10%; 20% allows burst slack), independent of the per-operation limit. Unbounded per-operation retries give +300%.",
+            "basis": "Google SRE book, Handling Overload (per-client retry budget ~10%; bounds worst case near 1.1x instead of ~3x); AWS Builders Library, Timeouts, retries and backoff with jitter (retry amplification).",
+            "unsure": "The 20% threshold is this harness's choice. A circuit breaker also bounds extra traffic but by stopping primary traffic too; if a library offers both, retry-only and breaker variants are reported separately."
+        },
+        {
+            "id": "S05",
+            "domain": "retry",
+            "kind": "behaviour",
+            "title": "Non-idempotent POST is not retried by default",
+            "setup": "Default retry configuration (only delays zeroed). A POST receives (a) HTTP 500, (b) a transport failure. Informational: (c) 503, (d) 429.",
+            "observed": "Number of requests sent in each sub-case.",
+            "expected": "Sub-cases (a) and (b): exactly 1 request (the server may have processed it).",
+            "basis": "RFC 9110 s9.2.2 (idempotent methods; automatic retry of others is not safe); AWS Builders Library (retry only idempotent operations or use idempotency keys).",
+            "unsure": "Sub-cases (c)/(d) are informational: 429/503 are often sent before processing and several libraries retry them for any method; the RFC does not declare that safe, but it is common practice. They do not affect the verdict."
+        },
+        {
+            "id": "S06",
+            "domain": "rate",
+            "kind": "behaviour",
+            "title": "Token bucket exact boundary and refill remainder",
+            "setup": "Capacity (burst) 2, refill 1 token per 2s, bucket starts full at t=0. Take 2 tokens at t=0. Probe at t=1.999 and t=2.0. Then jump to t=5.0 and probe; probe at t=5.999 and t=6.0.",
+            "observed": "Admit/reject decision at each probe instant.",
+            "expected": "t=0 third request rejected. t=1.999 rejected (no early admission). t=2.0 admitted, then rejected again. At t=5.0 exactly one token has accrued (admitted once, then rejected) and the 1.0s remainder toward the next token is preserved: t=5.999 rejected, t=6.0 admitted.",
+            "basis": "Token bucket definition: admissions in any interval of length T never exceed burst + rate*T; a refill remainder must not be discarded (generic definition, e.g. Wikipedia \"Token bucket\").",
+            "unsure": null
+        },
+        {
+            "id": "S07",
+            "domain": "rate",
+            "kind": "behaviour",
+            "title": "Fixed/sliding window boundary: no early admission",
+            "setup": "Limit 3 requests per window W (W=10s; W=1s where the library only offers a 1s unit). All 3 are admitted at t0. Probe the 4th request just before, at, and just after t0+W.",
+            "observed": "Decision (or the instant a delaying limiter lets it through) at t0+W-0.001, t0+W, t0+W+0.001.",
+            "expected": "The 4th request is not admitted before t0+W and is admitted no later than t0+W+0.001s.",
+            "basis": "Definition of an N-per-window limit: safety (no early admission) and liveness (admission once the window has elapsed).",
+            "unsure": "Whether admission occurs at exactly t0+W or one tick later is an open/closed-interval implementation choice; only \"not early\" and \"within 1ms\" are required."
+        },
+        {
+            "id": "S08",
+            "domain": "circuit",
+            "kind": "behaviour",
+            "title": "Circuit opens exactly at threshold and minimum samples",
+            "setup": "Minimum samples 4, failure-rate threshold 50% (count threshold 4 where the library only has that). Seq1: four failures. Seq2: success,success,failure,failure (exactly 50% at the 4th sample). Seq3: success,success,success,failure (25%).",
+            "observed": "After each sequence, whether the next call is admitted; and for Seq1 whether the 4th call was still admitted after 3 failures.",
+            "expected": "Seq1: calls 1-4 execute, call 5 rejected. Seq2: call 5 rejected. Seq3: call 5 admitted.",
+            "basis": "Resilience4j CircuitBreaker docs: opens when the failure rate is equal to or greater than the threshold, only after minimumNumberOfCalls.",
+            "unsure": "Rate semantics differ across libraries (some key counters by time window, count strategies have no rate). Each adapter uses the closest native configuration and states it."
+        },
+        {
+            "id": "S09",
+            "domain": "circuit",
+            "kind": "behaviour",
+            "title": "Half-open admits only the configured probes",
+            "setup": "Circuit open; cooldown elapsed. Five callers arrive before any probe has reported. Probe limit P=2 (P=1 where the library offers no setting).",
+            "observed": "How many of the five callers were allowed to execute.",
+            "expected": "Exactly P execute; the rest are rejected.",
+            "basis": "Resilience4j permittedNumberOfCallsInHalfOpenState; Polly circuit breaker half-open semantics.",
+            "unsure": null
+        },
+        {
+            "id": "S10",
+            "domain": "circuit",
+            "kind": "behaviour",
+            "title": "An abandoned probe neither closes the circuit nor wedges it forever",
+            "setup": "Circuit open, cooldown (30s) elapsed, a probe is admitted and never reports (worker died or was cancelled). Other callers arrive immediately, and again after a further 1.5x cooldown.",
+            "observed": "Do callers pass freely after the abandonment? Is a replacement probe admitted later?",
+            "expected": "Not closed right after abandonment (no free passage), and a replacement probe is admitted within 2x cooldown.",
+            "basis": "Safety (an unreported probe is not evidence of recovery) and liveness (probe leases/timeouts); design principle.",
+            "unsure": "No external standard specifies abandoned-probe handling; the expectation is a design principle, not a citable rule."
+        },
+        {
+            "id": "S11",
+            "domain": "circuit",
+            "kind": "behaviour",
+            "title": "A stale result after reopen cannot change breaker state",
+            "setup": "Call A starts while closed (t=0) and is slow. The circuit opens at t=0 (4 failures, cooldown 30s). At t=31 a probe fails and the circuit reopens (next probe due t=61). A completes at t=40: variant (i) with a failure, variant (ii) with a success.",
+            "observed": "(i) Is a probe admitted at t=60.999 / t=61.001? (ii) Is the circuit still open at t=45?",
+            "expected": "(i) next probe still due at t=61 (rejected at 60.999, admitted at 61.001). (ii) circuit remains open at t=45.",
+            "basis": "Late results from a previous circuit generation carry no information about the dependency's current state (generation/fencing guard).",
+            "unsure": "No external standard; Resilience4j/Polly documentation does not address it. Treated as a correctness property the project claims."
+        },
+        {
+            "id": "S12",
+            "domain": "bulkhead",
+            "kind": "behaviour",
+            "title": "Late/non-owner release cannot free someone else's permit",
+            "setup": "Concurrency limit 1, lease 1s. Holder A exceeds its lease. B is then admitted (lease expired). A finishes (late release) while B still runs. C arrives while B is running.",
+            "observed": "Is C admitted while B is still running?",
+            "expected": "C is rejected; peak concurrency never exceeds 1. A's late release must not release B's permit.",
+            "basis": "Fencing-token / ownership principle for leases (Kleppmann, \"How to do distributed locking\").",
+            "unsure": null
+        },
+        {
+            "id": "S13",
+            "domain": "bulkhead",
+            "kind": "behaviour",
+            "title": "Cancel before dispatch leaves no leaked capacity",
+            "setup": "A caller is admitted (permit taken) and is cancelled by its own cancellation signal before the transport callback is dispatched. Capacity is then probed with a fresh caller.",
+            "observed": "Is the permit returned?",
+            "expected": "Capacity is fully returned.",
+            "basis": "Resource-safety invariant: every acquired permit has exactly one release on all exits, including cancellation.",
+            "unsure": "Libraries without a cancellation concept are NOT_EXPRESSIBLE, not FAIL."
+        },
+        {
+            "id": "S14",
+            "domain": "bulkhead",
+            "kind": "behaviour",
+            "title": "Permit released when the callback throws",
+            "setup": "Concurrency limit 1. The callback throws an Exception, then (separately) a PHP Error.",
+            "observed": "After each throw, is a new caller admitted?",
+            "expected": "Yes for both.",
+            "basis": "try/finally resource-safety invariant.",
+            "unsure": null
+        },
+        {
+            "id": "S15",
+            "domain": "rate",
+            "kind": "behaviour",
+            "title": "Rate quota consumed equals requests actually sent",
+            "setup": "One logical GET fails twice with 503 then succeeds (3 wire requests). Retry and rate limiting are composed in both possible orders; quota is large enough never to block. Sub-case: a request cancelled before it is sent.",
+            "observed": "Quota units consumed vs. requests that reached the mock transport, per composition order.",
+            "expected": "consumed == sent for every composition order: retries count against the quota, and quota is not spent on requests never sent.",
+            "basis": "A rate limit protects the downstream so it must count wire traffic including retries (AWS Builders Library, retry amplification).",
+            "unsure": "Many designs deliberately leave composition order to the user. Reported as FAIL with gap \"composition-dependent\" when one order is correct and the other is not."
+        },
+        {
+            "id": "S16",
+            "domain": "errors",
+            "kind": "behaviour",
+            "title": "Typed, machine-readable rejection taxonomy",
+            "setup": "Provoke every rejection or give-up cause the library itself produces (rate-limited, circuit-open, bulkhead-full, deadline exceeded, retries exhausted).",
+            "observed": "Per cause: distinguishable by exception class/enum (not message text)? Do rate/circuit rejections carry a machine-readable earliest-retry time or duration?",
+            "expected": "Every produced cause has its own type, and rate-limit and circuit-open rejections expose a retry-at / retry-after value.",
+            "basis": "Engineering practice: callers branch on type, not on message text; Retry-After precedent in RFC 9110.",
+            "unsure": "Judgement-heavy; not a published standard. The \"retry-at on circuit-open\" clause is the harness author's requirement. Facts (type list, fields) are reported so a reader can re-grade."
+        },
+        {
+            "id": "S17",
+            "domain": "time",
+            "kind": "behaviour",
+            "title": "Wall-clock regression safety",
+            "setup": "A time-based limiter/breaker is exhausted at t=T. The wall clock then jumps BACK by 3600s. One full configured interval of elapsed (monotonic) time passes.",
+            "observed": "Does the component admit again after one interval of elapsed time, or stall until the clock catches up? Does it ever over-admit?",
+            "expected": "No over-admission, and recovery within <= 2x the configured interval of elapsed time (stall bounded, not ~3600s).",
+            "basis": "Durations should be measured with a monotonic clock (Linux clock_gettime(2) CLOCK_MONOTONIC is not affected by discontinuous jumps; PHP hrtime()).",
+            "unsure": "State shared across processes needs a shared (wall) clock, so full immunity is impossible there; only a bounded stall is required. A stall is the safe direction (no over-admission) but is an availability loss."
+        },
+        {
+            "id": "S18",
+            "domain": "events",
+            "kind": "behaviour",
+            "title": "Throwing observer does not change the business result",
+            "setup": "An event sink / logger / subscriber that throws on every event is attached. The operation (retry once then succeed, or a circuit trip) runs.",
+            "observed": "Is the business result (return value / completion) identical to the run without the observer?",
+            "expected": "Identical result; observer failure is contained.",
+            "basis": "OpenTelemetry specification, \"Error handling in OpenTelemetry\": instrumentation must not throw into application code.",
+            "unsure": "PSR-14 does not require a dispatcher to swallow listener exceptions, so a library can argue propagation is the dispatcher's job. The expectation reflects the telemetry principle, not PSR-14."
+        },
+        {
+            "id": "S19",
+            "domain": "static",
+            "kind": "measurement",
+            "title": "Runtime dependency count (transitive)",
+            "setup": "Transitive closure of \"require\" (excluding php, ext-*, lib-*) for the package as resolved in this harness's composer.lock.",
+            "observed": "Count and list of packages.",
+            "expected": "No verdict (measurement). Reqtide Core targets zero runtime dependencies.",
+            "basis": "composer.lock of the harness; equivalent to the packages reachable by \"composer why\".",
+            "unsure": "The count depends on the resolved set; shared transitive packages are counted per package."
+        },
+        {
+            "id": "S20",
+            "domain": "static",
+            "kind": "measurement",
+            "title": "PHP floor",
+            "setup": "The \"php\" constraint of the pinned release and the \"php\" constraints in its dependency closure.",
+            "observed": "Constraint strings from composer metadata.",
+            "expected": "No verdict (measurement).",
+            "basis": "composer.lock of the harness.",
+            "unsure": null
+        },
+        {
+            "id": "S21",
+            "domain": "static",
+            "kind": "behaviour",
+            "title": "Static analysis preserves the callback return type (generics)",
+            "setup": "PHPStan analyses $r = <library entry point that executes a callback returning int>; dumpType($r).",
+            "observed": "The type PHPStan infers for $r.",
+            "expected": "int (a @template return preserved through the execution API).",
+            "basis": "PHPStan generics via PHPDoc (@template).",
+            "unsure": null
+        }
+    ],
+    "results": {
+        "S01": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "Deadline 10s (newContext timeout), retry(maxAttempts=20, constant 4s, no jitter) + retryBudget(capacity 1000), every attempt 503: attempt start times [0,4,8], gave up at 8s with fail (the original 503 exception); 0 attempt(s) at or after D. The retry loop declines a wait that does not fit the remaining deadline (code read, not asserted here: OperationRun::decideRetry, reason retry_delay_exceeds_deadline). Control: with a 1000s deadline the same pipeline makes 20 attempts (the count limit), so the 10s run was stopped by time alone.",
+                "data": {
+                    "attempt_start_times": [
+                        0.0,
+                        4.0,
+                        8.0
+                    ],
+                    "returned_at": 8.0,
+                    "outcome": "fail",
+                    "control_deadline_1000s_attempts": 20
+                },
+                "wall_ms": 3145.6
+            },
+            "symfony-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a rate limiter only: it has no retry, deadline, circuit breaker, bulkhead or event facilities, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "symfony-http-client": {
+                "status": "FAIL",
+                "gap": "missing-capability",
+                "observation": "attempt start times [0,4,8,12,16,20,24,28,32,36,40]; returned at 40s with 503. 8 attempts started at or after D=10s. No total-deadline option exists: only max_retries (count) and per-request max_duration/timeout; each retry issues a new request, so a per-request limit does not span attempts (code read: RetryableHttpClient::request -> replaceRequest(same options); not executed because MockHttpClient does not enforce max_duration).",
+                "data": {
+                    "times": [
+                        0.0,
+                        4.0,
+                        8.0,
+                        12.0,
+                        16.0,
+                        20.0,
+                        24.0,
+                        28.0,
+                        32.0,
+                        36.0,
+                        40.0
+                    ],
+                    "returned_at": 40.0
+                },
+                "wall_ms": 919.6
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "FAIL",
+                "gap": "behaviour-defect",
+                "observation": "give_up_after_secs=10, constant 4s delay: attempt start times [0,4,8,10], returned at 10s with 503; 1 attempt(s) started at or after D (the last wait appears to be clipped from 4s to the remaining 2s by determineDelayTimeout(), so the final attempt lands exactly on the deadline; borderline: the library works in whole seconds and checks request_timestamp < first + give_up_after_secs only for attempts after that one).",
+                "data": {
+                    "times": [
+                        0.0,
+                        4.0,
+                        8.0,
+                        10.0
+                    ],
+                    "returned_at": 10.0
+                },
+                "wall_ms": 2719.7
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library only delays requests to a per-second/per-minute limit: it has no retry, deadline, circuit breaker, bulkhead, events or typed rejections, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "ackintosh-ganesha": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a circuit-breaker state tracker only: it has no retry, rate limiting, deadline, bulkhead or permit lifecycle, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "matheus85-duat": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "timeout(10)->retry(20, constant 4s): attempt start times [0,4,8], gave up at 8s with RuntimeException; 0 attempt(s) at or after D. RetryPolicy skips a wait when delay >= Context::remainingBudget().",
+                "data": {
+                    "times": [
+                        0.0,
+                        4.0,
+                        8.0
+                    ]
+                },
+                "wall_ms": 983.3
+            }
+        },
+        "S02": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "Deadline 10s, Retry-After 30 on the first 503, retry(20, constant 2s): requests=1 at [0], returned at 0s as deferred:retry_after_exceeds_deadline (wait 30s). The hint is read through ExceptionClassifier::retryAfterFrom(); the retry is converted into a typed deferral carrying the wait and the original 503 as previous.",
+                "data": {
+                    "requests": 1,
+                    "send_times": [
+                        0.0
+                    ],
+                    "returned_at": 0.0,
+                    "outcome": "deferred:retry_after_exceeds_deadline",
+                    "deferral_wait_seconds": 30.0,
+                    "previous": "Comparison\\WireStatus"
+                },
+                "wall_ms": 426.4
+            },
+            "symfony-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a rate limiter only: it has no retry, deadline, circuit breaker, bulkhead or event facilities, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "symfony-http-client": {
+                "status": "FAIL",
+                "gap": "missing-capability",
+                "observation": "requests=2, send times [0,30], returned at 30s (200). Retry-After honoured exactly (never early: yes) but waited past D=10s because no deadline can be set.",
+                "data": {
+                    "times": [
+                        0.0,
+                        30.0
+                    ],
+                    "returned_at": 30.0,
+                    "early": false
+                },
+                "wall_ms": 33.8
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "give_up_after_secs=10, Retry-After 30: requests=1 at [0], returned at 0s with 503.",
+                "data": {
+                    "times": [
+                        0.0
+                    ]
+                },
+                "wall_ms": 2.7
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library only delays requests to a per-second/per-minute limit: it has no retry, deadline, circuit breaker, bulkhead, events or typed rejections, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "ackintosh-ganesha": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a circuit-breaker state tracker only: it has no retry, rate limiting, deadline, bulkhead or permit lifecycle, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "matheus85-duat": {
+                "status": "NOT_EXPRESSIBLE",
+                "gap": null,
+                "observation": "No Retry-After support: Backoff::delayMs(int $attempt, Randomizer $randomizer) receives neither the exception nor any response, and the onRetry hook returns void. A user-written Backoff subclass sharing mutable state with the callback can emulate it; that glue (not library code) gave: requests at [0], returned at 0s.",
+                "data": [],
+                "wall_ms": 0.1
+            }
+        },
+        "S03": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "Deadline 120s. primary: Retry-After 6 vs constant backoff 2 -> gap 8s. Informational: Retry-After 1 vs backoff 4 -> gap 5s. Reqtide ADDS the backoff to the server hint (scheduled = min(maximumDelay, retryAfter + backoff)) instead of taking the larger or replacing it, so the hint is always a lower bound (code: OperationRun::decideRetry, \"scheduled = bound + jittered\"). maximumDelay is 60s here; a hint above maximumDelay becomes a deferral (reason retry_after_exceeds_maximum_delay).",
+                "data": {
+                    "primary_retry_after_6_backoff_2": {
+                        "requests": 2,
+                        "gap": 8.0,
+                        "outcome": "200"
+                    },
+                    "informational_retry_after_1_backoff_4": {
+                        "requests": 2,
+                        "gap": 5.0,
+                        "outcome": "200"
+                    }
+                },
+                "wall_ms": 1.2
+            },
+            "symfony-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a rate limiter only: it has no retry, deadline, circuit breaker, bulkhead or event facilities, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "symfony-http-client": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "primary: Retry-After 6 vs backoff 2 -> gap 6s. Informational: Retry-After 1 vs backoff 4 -> gap 1s (header REPLACES the configured backoff; RetryableHttpClient uses getDelayFromHeader() ?? strategy->getDelay()).",
+                "data": {
+                    "gap_primary": 6.0,
+                    "gap_info": 1.0
+                },
+                "wall_ms": 0.8
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "primary: Retry-After 6 vs backoff 2 -> gap 6s. Informational: Retry-After 1 vs backoff 4 -> gap 1s (the header replaces the computed delay in determineDelayTimeout()).",
+                "data": {
+                    "gap_primary": 6.0,
+                    "gap_info": 1.0
+                },
+                "wall_ms": 8.7
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library only delays requests to a per-second/per-minute limit: it has no retry, deadline, circuit breaker, bulkhead, events or typed rejections, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "ackintosh-ganesha": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a circuit-breaker state tracker only: it has no retry, rate limiting, deadline, bulkhead or permit lifecycle, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "matheus85-duat": {
+                "status": "NOT_EXPRESSIBLE",
+                "gap": null,
+                "observation": "No Retry-After concept: Backoff::delayMs(int $attempt, Randomizer $randomizer) cannot see the exception or response (see S02). The library parses no headers and has no HTTP awareness.",
+                "data": [],
+                "wall_ms": 0.0
+            }
+        },
+        "S04": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "1000 failing operations, maxAttempts=4 (3 retries each), delays 0. ADAPTATION: retryBudget is mandatory and has no default; it is a token bucket (absolute tokens), not a ratio of first attempts. Sized to 10% of the 1000 first attempts (capacity 100, refill 100 per 60s, no virtual time passes) following the SRE ~10% guidance cited by the scenario: 1100 wire requests, extra 100 (10%). Sensitivity (same code, bigger pool): capacity 1000 -> extra 1000 (100%); capacity 3000 -> extra 3000 (300%). The bound is the configured pool; Reqtide cannot express \"20% of first attempts\" as a ratio, and an over-sized pool gives no protection.",
+                "data": {
+                    "main": {
+                        "budget_capacity": 100,
+                        "wire_requests": 1100,
+                        "extra": 100,
+                        "extra_percent": 10
+                    },
+                    "sensitivity": [
+                        {
+                            "budget_capacity": 1000,
+                            "wire_requests": 2000,
+                            "extra": 1000,
+                            "extra_percent": 100
+                        },
+                        {
+                            "budget_capacity": 3000,
+                            "wire_requests": 4000,
+                            "extra": 3000,
+                            "extra_percent": 300
+                        }
+                    ]
+                },
+                "wall_ms": 1953.4
+            },
+            "symfony-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a rate limiter only: it has no retry, deadline, circuit breaker, bulkhead or event facilities, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "symfony-http-client": {
+                "status": "FAIL",
+                "gap": "missing-capability",
+                "observation": "1000 failing ops, max_retries=3: 4000 wire requests, extra 3000 (300% of first attempts). No retry budget / shared limit across operations exists in RetryableHttpClient or GenericRetryStrategy.",
+                "data": {
+                    "total": 4000,
+                    "extra": 3000
+                },
+                "wall_ms": 716.5
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "FAIL",
+                "gap": "missing-capability",
+                "observation": "1000 failing ops, max_retry_attempts=3, zero delay: 4000 wire requests, extra 3000 (300% of first attempts). No cross-operation retry budget exists; limits are per request (max_retry_attempts, give_up_after_secs).",
+                "data": {
+                    "total": 4000,
+                    "extra": 3000
+                },
+                "wall_ms": 476.5
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library only delays requests to a per-second/per-minute limit: it has no retry, deadline, circuit breaker, bulkhead, events or typed rejections, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "ackintosh-ganesha": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a circuit-breaker state tracker only: it has no retry, rate limiting, deadline, bulkhead or permit lifecycle, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "matheus85-duat": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "retry(4 attempts) only: 4000 wire requests, extra 3000 (300%). With circuit breaker stacked inside the retry (min 10 calls, 50%): 10 wire requests, 998 of 1000 operations rejected without any request. Bounded only because the breaker stops primary traffic too; there is no retry budget (shared cap on retries while first attempts continue).",
+                "data": {
+                    "retry_only_wire_requests": 4000,
+                    "retry_only_extra": 3000,
+                    "with_breaker_wire_requests": 10,
+                    "with_breaker_ops_rejected_without_calling": 998,
+                    "mechanism": "circuit-breaker, not a retry budget"
+                },
+                "wall_ms": 298.2
+            }
+        },
+        "S05": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "Default configuration (no retry() call => maxAttempts 1): requests {\"a_post_500\":1,\"b_post_transport_error\":1,\"c_post_503\":1,\"d_post_429\":1}. ADAPTATION NOTE: Reqtide has no default retry and no HTTP-method awareness, so this row is trivially satisfied by the default. Opt-in retry(3) with the default context (OperationSafety::unsafe()): 0 request(s), refused before dispatch with Enaxon\\Reqtide\\Exception\\InvalidConfigurationException (\"maxAttempts greater than one requires an explicit replay-safety contract\"). Control: the same opt-in pipeline retries a GET the caller asserts repeatable (ReplaySafetyContract::forReadOnlyCallable): 3 requests. Reqtide never verifies the assertion, so a caller can still wrongly assert a POST.",
+                "data": {
+                    "default_config_requests": {
+                        "a_post_500": 1,
+                        "b_post_transport_error": 1,
+                        "c_post_503": 1,
+                        "d_post_429": 1
+                    },
+                    "opt_in_retry3_unsafe_context": {
+                        "requests": 0,
+                        "exception": "Enaxon\\Reqtide\\Exception\\InvalidConfigurationException"
+                    },
+                    "control_opt_in_retry3_get_with_readOnly_assertion": 3
+                },
+                "wall_ms": 19.3
+            },
+            "symfony-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a rate limiter only: it has no retry, deadline, circuit breaker, bulkhead or event facilities, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "symfony-http-client": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "requests sent with default GenericRetryStrategy statuses (retry delays zeroed): {\"a_post_500\":1,\"b_post_transport_error\":1,\"c_post_503\":4,\"d_post_429\":4,\"control_get_500\":4} (default list retries 500/504/507/510 and transport errors only for idempotent methods; 423/425/429/502/503 for any method).",
+                "data": {
+                    "a_post_500": 1,
+                    "b_post_transport_error": 1,
+                    "c_post_503": 4,
+                    "d_post_429": 4,
+                    "control_get_500": 4
+                },
+                "wall_ms": 106.0
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "requests sent with library-default retry_on_status (429,503), retry_on_methods (\"*\": every method) and max_retry_attempts (10), delay zeroed: {\"a_post_500\":1,\"b_post_transport_error\":1,\"c_post_503\":11,\"d_post_429\":11,\"info_non_default_post_500_with_retry_on_status_incl_500\":11}. POST is retried on 429/503 because retry_on_methods defaults to all methods; a POST 500 is not retried only because 500 is not in the default status list.",
+                "data": {
+                    "a_post_500": 1,
+                    "b_post_transport_error": 1,
+                    "c_post_503": 11,
+                    "d_post_429": 11,
+                    "info_non_default_post_500_with_retry_on_status_incl_500": 11
+                },
+                "wall_ms": 168.0
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library only delays requests to a per-second/per-minute limit: it has no retry, deadline, circuit breaker, bulkhead, events or typed rejections, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "ackintosh-ganesha": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a circuit-breaker state tracker only: it has no retry, rate limiting, deadline, bulkhead or permit lifecycle, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "matheus85-duat": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is protocol-agnostic (wraps arbitrary callables): there is no HTTP method or idempotency notion to default on. Note: retry() defaults to retryOn=[Throwable::class], i.e. every failure of any wrapped callable is retried when retry() is added.",
+                "data": [],
+                "wall_ms": 0.0
+            }
+        },
+        "S06": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "tokenBucket(capacity 2, refill 1 token per 2s), rateLimit cost 1, bucket starts full, one execute() per probe (admitted = callable ran): decisions {\"t0.a\":true,\"t0.b\":true,\"t0.c(3rd)\":false,\"t1.999\":false,\"t2.0\":true,\"t2.0(again)\":false,\"t5.0\":true,\"t5.0(again)\":false,\"t5.999\":false,\"t6.0\":true}",
+                "data": {
+                    "t0.a": true,
+                    "t0.b": true,
+                    "t0.c(3rd)": false,
+                    "t1.999": false,
+                    "t2.0": true,
+                    "t2.0(again)": false,
+                    "t5.0": true,
+                    "t5.0(again)": false,
+                    "t5.999": false,
+                    "t6.0": true
+                },
+                "wall_ms": 236.6
+            },
+            "symfony-rate-limiter": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "decisions {\"t0.a\":true,\"t0.b\":true,\"t0.c(3rd)\":false,\"t1.999\":false,\"t2.0\":true,\"t2.0(again)\":false,\"t5.0\":true,\"t5.0(again)\":false,\"t5.999\":false,\"t6.0\":true}",
+                "data": {
+                    "decisions": {
+                        "t0.a": true,
+                        "t0.b": true,
+                        "t0.c(3rd)": false,
+                        "t1.999": false,
+                        "t2.0": true,
+                        "t2.0(again)": false,
+                        "t5.0": true,
+                        "t5.0(again)": false,
+                        "t5.999": false,
+                        "t6.0": true
+                    }
+                },
+                "wall_ms": 423.2
+            },
+            "symfony-http-client": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Rate algorithms live in symfony/rate-limiter (tested directly in that adapter); ThrottlingHttpClient only calls reserve().",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a retry middleware only: it has no rate limiter, circuit breaker or bulkhead, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Algorithm is a sliding log of request timestamps (RateLimiter::delayUntilNextRequest), not a token bucket: there is no burst capacity or fractional refill to test.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "ackintosh-ganesha": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a circuit-breaker state tracker only: it has no retry, rate limiting, deadline, bulkhead or permit lifecycle, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "matheus85-duat": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library wraps callables with retry/breaker/timeout/bulkhead/fallback; it has no rate limiter (README: \"planned\") or HTTP awareness, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            }
+        },
+        "S07": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "limit 3 per W=10s, 3 admitted at t0 (t0 is on a 10s wall boundary so Aligned and FirstHit coincide), 4th request (a fresh limiter per probe) admitted? {\"fixed_window_aligned\":{\"t0+W-0.001\":false,\"t0+W\":true,\"t0+W+0.001\":true},\"fixed_window_first_hit\":{\"t0+W-0.001\":false,\"t0+W\":true,\"t0+W+0.001\":true},\"sliding_counter\":{\"t0+W-0.001\":false,\"t0+W\":false,\"t0+W+0.001\":false,\"first_admission_seconds_after_t0_0.5s_steps\":13.5}}. Verdict on the two FIXED-window anchors (the scenario names fixed/sliding window boundary); the approximate sliding counter is reported only as data: it weights the previous window, so its 4th request is not admitted at t0+W+0.001 (first admission seen at about +13.5s). That is safe (never early) but would miss the scenario's \"within 1ms\" liveness clause, and it is a different algorithm from the exact sliding log some competitors use, which is why it is not the graded one.",
+                "data": {
+                    "fixed_window_aligned": {
+                        "t0+W-0.001": false,
+                        "t0+W": true,
+                        "t0+W+0.001": true
+                    },
+                    "fixed_window_first_hit": {
+                        "t0+W-0.001": false,
+                        "t0+W": true,
+                        "t0+W+0.001": true
+                    },
+                    "sliding_counter": {
+                        "t0+W-0.001": false,
+                        "t0+W": false,
+                        "t0+W+0.001": false,
+                        "first_admission_seconds_after_t0_0.5s_steps": 13.5
+                    }
+                },
+                "wall_ms": 60.9
+            },
+            "symfony-rate-limiter": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "4th request accepted? {\"t0+W-0.001\":false,\"t0+W\":true,\"t0+W+0.001\":true}",
+                "data": {
+                    "t0+W-0.001": false,
+                    "t0+W": true,
+                    "t0+W+0.001": true
+                },
+                "wall_ms": 41.3
+            },
+            "symfony-http-client": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Rate algorithms live in symfony/rate-limiter (tested directly in that adapter).",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a retry middleware only: it has no rate limiter, circuit breaker or bulkhead, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "3 requests at t0=0 (limit 3/s), 4th requested at the labelled instant; time it reached the wire: {\"t0+W-0.001\":{\"4th_reached_wire_at\":1},\"t0+W\":{\"4th_reached_wire_at\":1},\"t0+W+0.001\":{\"4th_reached_wire_at\":1.000999927520752}} (the middleware sleeps instead of rejecting).",
+                "data": {
+                    "t0+W-0.001": {
+                        "4th_reached_wire_at": 1.0
+                    },
+                    "t0+W": {
+                        "4th_reached_wire_at": 1.0
+                    },
+                    "t0+W+0.001": {
+                        "4th_reached_wire_at": 1.000999927520752
+                    }
+                },
+                "wall_ms": 132.2
+            },
+            "ackintosh-ganesha": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a circuit-breaker state tracker only: it has no retry, rate limiting, deadline, bulkhead or permit lifecycle, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "matheus85-duat": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library wraps callables with retry/breaker/timeout/bulkhead/fallback; it has no rate limiter (README: \"planned\") or HTTP awareness, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            }
+        },
+        "S08": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "circuitBreaker(lastCalls(10), minimumSamples 4, Ratio 1/2, open 30s, probes 1, lease 60s): {\"seq1_FFFF_then_5th\":[\"fail\",\"fail\",\"fail\",\"fail\",\"rejected:circuit_open\"],\"seq2_SSFF_then_5th\":[\"ok\",\"ok\",\"fail\",\"fail\",\"rejected:circuit_open\"],\"seq3_SSSF_then_5th\":[\"ok\",\"ok\",\"ok\",\"fail\",\"ok\"]}",
+                "data": {
+                    "seq1_FFFF_then_5th": [
+                        "fail",
+                        "fail",
+                        "fail",
+                        "fail",
+                        "rejected:circuit_open"
+                    ],
+                    "seq2_SSFF_then_5th": [
+                        "ok",
+                        "ok",
+                        "fail",
+                        "fail",
+                        "rejected:circuit_open"
+                    ],
+                    "seq3_SSSF_then_5th": [
+                        "ok",
+                        "ok",
+                        "ok",
+                        "fail",
+                        "ok"
+                    ]
+                },
+                "wall_ms": 256.4
+            },
+            "symfony-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a rate limiter only: it has no retry, deadline, circuit breaker, bulkhead or event facilities, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "symfony-http-client": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is an HTTP client with retry and throttling decorators; it has no circuit breaker, bulkhead, or half-open probing, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a retry middleware only: it has no rate limiter, circuit breaker or bulkhead, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library only delays requests to a per-second/per-minute limit: it has no retry, deadline, circuit breaker, bulkhead, events or typed rejections, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "ackintosh-ganesha": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "Per strategy: {\"count(threshold=4)\":{\"seq1_4_failures_then_5th\":[\"fail\",\"fail\",\"fail\",\"fail\",\"rejected\"],\"seq1_ok\":true,\"seq2_seq3\":\"not applicable: count strategy has no failure-rate notion\"},\"rate(min=4,50%)\":{\"seq1_4_failures_then_5th\":[\"fail\",\"fail\",\"fail\",\"fail\",\"rejected\"],\"seq1_ok\":true,\"seq2_SSFF_then_5th\":[\"ok\",\"ok\",\"fail\",\"fail\",\"rejected\"],\"seq2_ok\":true,\"seq3_SSSF_then_5th\":[\"ok\",\"ok\",\"ok\",\"fail\",\"ok\"],\"seq3_ok\":true}}",
+                "data": {
+                    "count(threshold=4)": {
+                        "seq1_4_failures_then_5th": [
+                            "fail",
+                            "fail",
+                            "fail",
+                            "fail",
+                            "rejected"
+                        ],
+                        "seq1_ok": true,
+                        "seq2_seq3": "not applicable: count strategy has no failure-rate notion"
+                    },
+                    "rate(min=4,50%)": {
+                        "seq1_4_failures_then_5th": [
+                            "fail",
+                            "fail",
+                            "fail",
+                            "fail",
+                            "rejected"
+                        ],
+                        "seq1_ok": true,
+                        "seq2_SSFF_then_5th": [
+                            "ok",
+                            "ok",
+                            "fail",
+                            "fail",
+                            "rejected"
+                        ],
+                        "seq2_ok": true,
+                        "seq3_SSSF_then_5th": [
+                            "ok",
+                            "ok",
+                            "ok",
+                            "fail",
+                            "ok"
+                        ],
+                        "seq3_ok": true
+                    }
+                },
+                "wall_ms": 510.3
+            },
+            "matheus85-duat": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "circuitBreaker(rate 0.5, minimumCalls 4): {\"seq1\":[\"fail\",\"fail\",\"fail\",\"fail\",\"rejected:circuit\"],\"seq2_SSFF\":[\"ok\",\"ok\",\"fail\",\"fail\",\"rejected:circuit\"],\"seq3_SSSF\":[\"ok\",\"ok\",\"ok\",\"fail\",\"ok\"]}",
+                "data": {
+                    "seq1": [
+                        "fail",
+                        "fail",
+                        "fail",
+                        "fail",
+                        "rejected:circuit"
+                    ],
+                    "seq2_SSFF": [
+                        "ok",
+                        "ok",
+                        "fail",
+                        "fail",
+                        "rejected:circuit"
+                    ],
+                    "seq3_SSSF": [
+                        "ok",
+                        "ok",
+                        "ok",
+                        "fail",
+                        "ok"
+                    ]
+                },
+                "wall_ms": 1.3
+            }
+        },
+        "S09": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "open at t=0, 31s elapsed (cooldown 30s), 5 callers started before any probe reports (callbacks parked in Fibers), probeCapacity = probeSuccessThreshold = P: {\"P=2\":{\"admitted_of_5\":2,\"others\":[\"rejected:circuit_probe_capacity_exhausted\",\"rejected:circuit_probe_capacity_exhausted\",\"rejected:circuit_probe_capacity_exhausted\"]},\"P=1\":{\"admitted_of_5\":1,\"others\":[\"rejected:circuit_probe_capacity_exhausted\",\"rejected:circuit_probe_capacity_exhausted\",\"rejected:circuit_probe_capacity_exhausted\",\"rejected:circuit_probe_capacity_exhausted\"]}}",
+                "data": {
+                    "P=2": {
+                        "admitted_of_5": 2,
+                        "others": [
+                            "rejected:circuit_probe_capacity_exhausted",
+                            "rejected:circuit_probe_capacity_exhausted",
+                            "rejected:circuit_probe_capacity_exhausted"
+                        ]
+                    },
+                    "P=1": {
+                        "admitted_of_5": 1,
+                        "others": [
+                            "rejected:circuit_probe_capacity_exhausted",
+                            "rejected:circuit_probe_capacity_exhausted",
+                            "rejected:circuit_probe_capacity_exhausted",
+                            "rejected:circuit_probe_capacity_exhausted"
+                        ]
+                    }
+                },
+                "wall_ms": 3.3
+            },
+            "symfony-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a rate limiter only: it has no retry, deadline, circuit breaker, bulkhead or event facilities, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "symfony-http-client": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is an HTTP client with retry and throttling decorators; it has no circuit breaker, bulkhead, or half-open probing, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a retry middleware only: it has no rate limiter, circuit breaker or bulkhead, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library only delays requests to a per-second/per-minute limit: it has no retry, deadline, circuit breaker, bulkhead, events or typed rejections, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "ackintosh-ganesha": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "open, 31s elapsed (interval 30s), 5 isAvailable() calls before any report: {\"count\":{\"admitted_of_5\":1},\"rate\":{\"admitted_of_5\":1}}. The probe count is not configurable; the observed behaviour is a single probe (isHalfOpen() rewrites lastFailureTime on the first call).",
+                "data": {
+                    "count": {
+                        "admitted_of_5": 1
+                    },
+                    "rate": {
+                        "admitted_of_5": 1
+                    }
+                },
+                "wall_ms": 0.5
+            },
+            "matheus85-duat": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "open, cooldown elapsed, 5 callers started before any probe returns (callbacks parked in Fibers): {\"P=2\":{\"admitted_of_5\":2},\"P=1\":{\"admitted_of_5\":1}}",
+                "data": {
+                    "P=2": {
+                        "admitted_of_5": 2
+                    },
+                    "P=1": {
+                        "admitted_of_5": 1
+                    }
+                },
+                "wall_ms": 24.8
+            }
+        },
+        "S10": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "probe admitted at +31s and never reported (parked Fiber); others immediately, then a caller 45s later. ADAPTATION: the probe slot is released only when its permit lease expires, and permitLease has no default; 30s (= open duration, the same self-heal horizon duat uses) is the graded setting: {\"permit_lease\":30,\"probe_admitted\":true,\"callers_right_after\":[\"rejected:circuit_probe_capacity_exhausted\",\"rejected:circuit_probe_capacity_exhausted\"],\"caller_after_1.5x_cooldown\":\"ok\",\"replacement_admitted_seconds_after_probe_if_not_at_1.5x\":null}. Sensitivity with lease 60s (also valid): {\"permit_lease\":60,\"probe_admitted\":true,\"callers_right_after\":[\"rejected:circuit_probe_capacity_exhausted\",\"rejected:circuit_probe_capacity_exhausted\"],\"caller_after_1.5x_cooldown\":\"rejected:circuit_probe_capacity_exhausted\",\"replacement_admitted_seconds_after_probe_if_not_at_1.5x\":60} - recovery time equals the configured lease: the replacement probe is admitted exactly 60s (= 2x cooldown) after the abandoned one, which meets the scenario's \"within 2x cooldown\" wording but not the stricter 1.5x-cooldown probe the adapters use; with a lease above 2x cooldown it would not.",
+                "data": {
+                    "main_lease_30s": {
+                        "permit_lease": 30.0,
+                        "probe_admitted": true,
+                        "callers_right_after": [
+                            "rejected:circuit_probe_capacity_exhausted",
+                            "rejected:circuit_probe_capacity_exhausted"
+                        ],
+                        "caller_after_1.5x_cooldown": "ok",
+                        "replacement_admitted_seconds_after_probe_if_not_at_1.5x": null
+                    },
+                    "sensitivity_lease_60s": {
+                        "permit_lease": 60.0,
+                        "probe_admitted": true,
+                        "callers_right_after": [
+                            "rejected:circuit_probe_capacity_exhausted",
+                            "rejected:circuit_probe_capacity_exhausted"
+                        ],
+                        "caller_after_1.5x_cooldown": "rejected:circuit_probe_capacity_exhausted",
+                        "replacement_admitted_seconds_after_probe_if_not_at_1.5x": 60.0
+                    }
+                },
+                "wall_ms": 4.7
+            },
+            "symfony-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a rate limiter only: it has no retry, deadline, circuit breaker, bulkhead or event facilities, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "symfony-http-client": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is an HTTP client with retry and throttling decorators; it has no circuit breaker, bulkhead, or half-open probing, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a retry middleware only: it has no rate limiter, circuit breaker or bulkhead, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library only delays requests to a per-second/per-minute limit: it has no retry, deadline, circuit breaker, bulkhead, events or typed rejections, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "ackintosh-ganesha": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "probe admitted at +31s and never reported; others immediately, then a caller 45s later: {\"count\":{\"probe_admitted\":true,\"callers_right_after\":[false,false],\"caller_after_1.5x_cooldown\":true},\"rate\":{\"probe_admitted\":true,\"callers_right_after\":[false,false],\"caller_after_1.5x_cooldown\":true}}. (Recovery in the rate strategy is by tumbling-window ageing of the failure counters, not by a probe timeout.)",
+                "data": {
+                    "count": {
+                        "probe_admitted": true,
+                        "callers_right_after": [
+                            false,
+                            false
+                        ],
+                        "caller_after_1.5x_cooldown": true
+                    },
+                    "rate": {
+                        "probe_admitted": true,
+                        "callers_right_after": [
+                            false,
+                            false
+                        ],
+                        "caller_after_1.5x_cooldown": true
+                    }
+                },
+                "wall_ms": 0.4
+            },
+            "matheus85-duat": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "probe admitted and never resumed; {\"probe_admitted\":true,\"callers_right_after\":[\"rejected:circuit\",\"rejected:circuit\"],\"caller_after_1.5x_cooldown\":\"ok\"}. (half_open_calls has a TTL of cooldownSeconds, so the slot self-heals.)",
+                "data": {
+                    "probe_admitted": true,
+                    "callers_right_after": [
+                        "rejected:circuit",
+                        "rejected:circuit"
+                    ],
+                    "caller_after_1.5x_cooldown": "ok"
+                },
+                "wall_ms": 22.0
+            }
+        },
+        "S11": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "{\"control_no_stale\":{\"probe\":\"fail\",\"at_60.999\":\"rejected:circuit_open\",\"at_61.001\":\"ok\"},\"stale_failure\":{\"probe\":\"fail\",\"at_60.999\":\"rejected:circuit_open\",\"at_61.001\":\"ok\"},\"stale_success\":{\"probe\":\"fail\",\"at_45\":\"rejected:circuit_open\"},\"control_valid\":true}. Permit lease is 60s so the stale result is rejected by the generation/phase fence, not by lease expiry; control valid: yes.",
+                "data": {
+                    "control_no_stale": {
+                        "probe": "fail",
+                        "at_60.999": "rejected:circuit_open",
+                        "at_61.001": "ok"
+                    },
+                    "stale_failure": {
+                        "probe": "fail",
+                        "at_60.999": "rejected:circuit_open",
+                        "at_61.001": "ok"
+                    },
+                    "stale_success": {
+                        "probe": "fail",
+                        "at_45": "rejected:circuit_open"
+                    },
+                    "control_valid": true
+                },
+                "wall_ms": 19.6
+            },
+            "symfony-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a rate limiter only: it has no retry, deadline, circuit breaker, bulkhead or event facilities, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "symfony-http-client": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is an HTTP client with retry and throttling decorators; it has no circuit breaker, bulkhead, or half-open probing, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a retry middleware only: it has no rate limiter, circuit breaker or bulkhead, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library only delays requests to a per-second/per-minute limit: it has no retry, deadline, circuit breaker, bulkhead, events or typed rejections, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "ackintosh-ganesha": {
+                "status": "FAIL",
+                "gap": "missing-capability",
+                "observation": "{\"count\":{\"control_no_stale\":{\"probe_admitted\":true,\"admitted_at_61\":false,\"admitted_at_62\":true},\"stale_failure\":{\"probe_admitted\":true,\"admitted_at_61\":false,\"admitted_at_62\":false},\"stale_success\":{\"probe_admitted\":true,\"still_open_at_45\":true},\"verdict\":{\"control_ok\":true,\"stale_failure_ok\":false,\"stale_success_ok\":true}},\"rate\":{\"control_no_stale\":{\"probe_admitted\":true,\"admitted_at_61\":false,\"admitted_at_62\":true},\"stale_failure\":{\"probe_admitted\":true,\"admitted_at_61\":false,\"admitted_at_62\":false},\"stale_success\":{\"probe_admitted\":true,\"still_open_at_45\":true},\"verdict\":{\"control_ok\":true,\"stale_failure_ok\":false,\"stale_success_ok\":true}}}. Ganesha has no notion of a call/generation: failure() is a bare counter+timestamp update, so a result from before the reopen is indistinguishable from a fresh one. (Clock is whole seconds, so next probe is due strictly after 31+30s.)",
+                "data": {
+                    "count": {
+                        "control_no_stale": {
+                            "probe_admitted": true,
+                            "admitted_at_61": false,
+                            "admitted_at_62": true
+                        },
+                        "stale_failure": {
+                            "probe_admitted": true,
+                            "admitted_at_61": false,
+                            "admitted_at_62": false
+                        },
+                        "stale_success": {
+                            "probe_admitted": true,
+                            "still_open_at_45": true
+                        },
+                        "verdict": {
+                            "control_ok": true,
+                            "stale_failure_ok": false,
+                            "stale_success_ok": true
+                        }
+                    },
+                    "rate": {
+                        "control_no_stale": {
+                            "probe_admitted": true,
+                            "admitted_at_61": false,
+                            "admitted_at_62": true
+                        },
+                        "stale_failure": {
+                            "probe_admitted": true,
+                            "admitted_at_61": false,
+                            "admitted_at_62": false
+                        },
+                        "stale_success": {
+                            "probe_admitted": true,
+                            "still_open_at_45": true
+                        },
+                        "verdict": {
+                            "control_ok": true,
+                            "stale_failure_ok": false,
+                            "stale_success_ok": true
+                        }
+                    }
+                },
+                "wall_ms": 1.2
+            },
+            "matheus85-duat": {
+                "status": "FAIL",
+                "gap": "behaviour-defect",
+                "observation": "{\"control_no_stale\":{\"probe\":\"fail\",\"at_60.999\":\"rejected:circuit\",\"at_61.001\":\"ok\"},\"stale_failure\":{\"probe\":\"fail\",\"at_60.999\":\"rejected:circuit\",\"at_61.001\":\"rejected:circuit\"},\"stale_success\":{\"probe\":\"fail\",\"at_45\":\"rejected:circuit\"},\"control_valid\":true}. A late failure re-enters recordFailure(), re-evaluates the window and calls open() again, rewriting opened_at (the cooldown restarts from the stale result). A late success only increments a bucket.",
+                "data": {
+                    "control_no_stale": {
+                        "probe": "fail",
+                        "at_60.999": "rejected:circuit",
+                        "at_61.001": "ok"
+                    },
+                    "stale_failure": {
+                        "probe": "fail",
+                        "at_60.999": "rejected:circuit",
+                        "at_61.001": "rejected:circuit"
+                    },
+                    "stale_success": {
+                        "probe": "fail",
+                        "at_45": "rejected:circuit"
+                    },
+                    "control_valid": true
+                },
+                "wall_ms": 3.8
+            }
+        },
+        "S12": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "ADAPTATION: limit 1; lease 1.2s with attempt timeout 100ms (the library requires lease > attempt timeout + 1s, so the scenario's 1s lease cannot be configured): {\"C\":\"rejected:concurrency_capacity_exhausted\",\"C_rejected\":true,\"B_still_running\":true,\"A_result\":\"ok\",\"physical_peak_callbacks_running\":2}. GRADED on the scenario's observed question (is C admitted while B still runs? no, so A's late release did not free B's permit). The physical peak of 2 is A and B overlapping: the scenario starts B after A's lease expired while A is still running, so any lease-based bulkhead shows it and the literal clause \"peak concurrency never exceeds 1\" cannot be satisfied.",
+                "data": {
+                    "C": "rejected:concurrency_capacity_exhausted",
+                    "C_rejected": true,
+                    "B_still_running": true,
+                    "A_result": "ok",
+                    "physical_peak_callbacks_running": 2
+                },
+                "wall_ms": 103.2
+            },
+            "symfony-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a rate limiter only: it has no retry, deadline, circuit breaker, bulkhead or event facilities, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "symfony-http-client": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is an HTTP client with retry and throttling decorators; it has no circuit breaker, bulkhead, or half-open probing, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a retry middleware only: it has no rate limiter, circuit breaker or bulkhead, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library only delays requests to a per-second/per-minute limit: it has no retry, deadline, circuit breaker, bulkhead, events or typed rejections, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "ackintosh-ganesha": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a circuit-breaker state tracker only: it has no retry, rate limiting, deadline, bulkhead or permit lifecycle, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "matheus85-duat": {
+                "status": "FAIL",
+                "gap": "behaviour-defect",
+                "observation": "limit 1, lease 1s: {\"peak_concurrency\":2,\"C\":\"admitted (running)\",\"B_still_running\":true}. BulkheadPolicy releases by increment(-1) on a shared counter with no holder identity, so a late release decrements the counter now owned by B.",
+                "data": {
+                    "peak_concurrency": 2,
+                    "C": "admitted (running)",
+                    "B_still_running": true
+                },
+                "wall_ms": 25.8
+            }
+        },
+        "S13": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "bulkhead(1, lease 60s); the caller's own CancellationToken is cancelled from PreparedAttempt::verifyReplay() (after the permit is held, before dispatch): {\"disposition\":\"cancelled\",\"permit_held_at_cancel_instant\":true,\"dispatched\":0,\"summary_dispatched\":0,\"admittedNotDispatched\":0,\"fresh_caller_after_cancel\":\"ok\",\"second_caller_while_one_runs\":\"rejected:concurrency_capacity_exhausted\"}",
+                "data": {
+                    "disposition": "cancelled",
+                    "permit_held_at_cancel_instant": true,
+                    "dispatched": 0,
+                    "summary_dispatched": 0,
+                    "admittedNotDispatched": 0,
+                    "fresh_caller_after_cancel": "ok",
+                    "second_caller_while_one_runs": "rejected:concurrency_capacity_exhausted"
+                },
+                "wall_ms": 31.9
+            },
+            "symfony-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library has no permits/concurrency capacity and no cancellation signal; a Reservation cannot be cancelled or refunded (LimiterInterface exposes only reserve(), consume(), reset()). Rate-quota accounting is covered by S15.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "symfony-http-client": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library has no concurrency permits; throttling quota is covered by S15.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a retry middleware only: it has no rate limiter, circuit breaker or bulkhead, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library only delays requests to a per-second/per-minute limit: it has no retry, deadline, circuit breaker, bulkhead, events or typed rejections, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "ackintosh-ganesha": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a circuit-breaker state tracker only: it has no retry, rate limiting, deadline, bulkhead or permit lifecycle, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "matheus85-duat": {
+                "status": "NOT_EXPRESSIBLE",
+                "gap": null,
+                "observation": "Library has no cancellation token/signal, so \"cancel before dispatch\" cannot be expressed. Nearest expressible case (informational): bulkhead(1) outside an OPEN circuit breaker rejects before dispatch (rejected:circuit) and capacity is returned (fresh caller: ok).",
+                "data": [],
+                "wall_ms": 0.9
+            }
+        },
+        "S14": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "after the callback throws, is the original throwable propagated and the next caller admitted? {\"Exception\":{\"propagated_unchanged\":true,\"next_caller\":\"ok\"},\"Error\":{\"propagated_unchanged\":true,\"next_caller\":\"ok\"}}",
+                "data": {
+                    "Exception": {
+                        "propagated_unchanged": true,
+                        "next_caller": "ok"
+                    },
+                    "Error": {
+                        "propagated_unchanged": true,
+                        "next_caller": "ok"
+                    }
+                },
+                "wall_ms": 1.5
+            },
+            "symfony-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a rate limiter only: it has no retry, deadline, circuit breaker, bulkhead or event facilities, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "symfony-http-client": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library has no concurrency permits to release.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a retry middleware only: it has no rate limiter, circuit breaker or bulkhead, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library only delays requests to a per-second/per-minute limit: it has no retry, deadline, circuit breaker, bulkhead, events or typed rejections, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "ackintosh-ganesha": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a circuit-breaker state tracker only: it has no retry, rate limiting, deadline, bulkhead or permit lifecycle, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "matheus85-duat": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "after a callback throws, next caller admitted? {\"Exception\":\"ok\",\"Error\":\"ok\"} (BulkheadPolicy releases in finally).",
+                "data": {
+                    "Exception": "ok",
+                    "Error": "ok"
+                },
+                "wall_ms": 0.1
+            }
+        },
+        "S15": {
+            "reqtide": {
+                "status": "FAIL",
+                "gap": "missing-capability",
+                "observation": "One GET fails twice (503) then succeeds. Native composition (retry + rateLimit in one pipeline; rate is debited for every dispatch opportunity): consumed 3, sent 3. Informational, user-built nesting of two single-purpose pipelines with the rate limiter OUTSIDE the retry: consumed 1, sent 3 (the same composition-order hazard the competitors show, reachable only by hand). Cancel-before-send (token cancelled after admission and rate debit, before dispatch): consumed 1, sent 0, disposition cancelled, admittedNotDispatched 1 - quota is NOT refunded by design (a transport failure never refunds it, and quota may remain consumed after a cancel before dispatch). Every attempt is charged.",
+                "data": {
+                    "native_single_pipeline": {
+                        "consumed": 3,
+                        "sent": 3
+                    },
+                    "user_nested_rate_outer_of_retry": {
+                        "consumed": 1,
+                        "sent": 3
+                    },
+                    "cancel_before_send": {
+                        "consumed": 1,
+                        "sent": 0,
+                        "disposition": "cancelled",
+                        "admittedNotDispatched": 1
+                    }
+                },
+                "wall_ms": 15.9
+            },
+            "symfony-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a rate limiter only: it has no retry, deadline, circuit breaker, bulkhead or event facilities, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "symfony-http-client": {
+                "status": "FAIL",
+                "gap": "composition-dependent",
+                "observation": "quota consumed vs wire requests: {\"retry_outer(throttle(wire))\":{\"consumed\":3,\"sent\":3},\"throttle_outer(retry(wire))\":{\"consumed\":1,\"sent\":3}}. ThrottlingHttpClient reserves one token per request() call it sees, so retries made by an inner RetryableHttpClient are invisible to it. Cancel-before-send sub-case not run: ThrottlingHttpClient calls inner request() before reserving and MockHttpClient has no unsent state to cancel.",
+                "data": {
+                    "retry_outer(throttle(wire))": {
+                        "consumed": 3,
+                        "sent": 3
+                    },
+                    "throttle_outer(retry(wire))": {
+                        "consumed": 1,
+                        "sent": 3
+                    }
+                },
+                "wall_ms": 19.1
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a retry middleware only: it has no rate limiter, circuit breaker or bulkhead, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "FAIL",
+                "gap": "composition-dependent",
+                "observation": "rate slots recorded vs wire requests (retry provided by caseyamcl/guzzle_retry_middleware as test fixture): {\"retry_outer(limiter(wire))\":{\"consumed\":3,\"sent\":3},\"limiter_outer(retry(wire))\":{\"consumed\":1,\"sent\":3}}. Cancel-before-send sub-case not run (middleware pushes the timestamp immediately before calling the next handler).",
+                "data": {
+                    "retry_outer(limiter(wire))": {
+                        "consumed": 3,
+                        "sent": 3
+                    },
+                    "limiter_outer(retry(wire))": {
+                        "consumed": 1,
+                        "sent": 3
+                    }
+                },
+                "wall_ms": 4.0
+            },
+            "ackintosh-ganesha": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a circuit-breaker state tracker only: it has no retry, rate limiting, deadline, bulkhead or permit lifecycle, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "matheus85-duat": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library wraps callables with retry/breaker/timeout/bulkhead/fallback; it has no rate limiter (README: \"planned\") or HTTP awareness, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            }
+        },
+        "S16": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "Five causes provoked. Distinct (class, ReasonCode enum) pairs: yes; rate-limit and circuit-open rejections carry a retry-after: yes. Facts: {\"rate_limited\":{\"class\":\"Enaxon\\\\Reqtide\\\\Exception\\\\AdmissionRejectedException\",\"reason_code\":\"rate.exhausted\",\"retry_after_seconds\":10,\"status\":\"rejected\",\"problem_retryability\":\"after_wait\"},\"circuit_open\":{\"class\":\"Enaxon\\\\Reqtide\\\\Exception\\\\AdmissionRejectedException\",\"reason_code\":\"circuit_open\",\"retry_after_seconds\":30,\"status\":\"rejected\",\"problem_retryability\":\"after_wait\"},\"bulkhead_full\":{\"class\":\"Enaxon\\\\Reqtide\\\\Exception\\\\AdmissionRejectedException\",\"reason_code\":\"concurrency_capacity_exhausted\",\"retry_after_seconds\":null,\"status\":\"rejected\",\"problem_retryability\":\"transient\"},\"deadline_exceeded\":{\"class\":\"Enaxon\\\\Reqtide\\\\Exception\\\\DeadlineExceededException\",\"reason_code\":\"deadline_exceeded\",\"problem_retryability\":\"never\"},\"retries_exhausted\":{\"detailed_mode\":{\"disposition\":\"failed\",\"problem_code\":\"attempts_exhausted\",\"attempts\":3},\"simple_mode_exception\":\"Comparison\\\\UpstreamFailure\",\"typed_in_simple_mode\":false}}. Limitation: retries-exhausted is machine-readable only through executeDetailed() (problem()->code / diagnostics); the throwing execute() returns the original business exception unchanged (by design: business exceptions are never wrapped).",
+                "data": {
+                    "rate_limited": {
+                        "class": "Enaxon\\Reqtide\\Exception\\AdmissionRejectedException",
+                        "reason_code": "rate.exhausted",
+                        "retry_after_seconds": 10.0,
+                        "status": "rejected",
+                        "problem_retryability": "after_wait"
+                    },
+                    "circuit_open": {
+                        "class": "Enaxon\\Reqtide\\Exception\\AdmissionRejectedException",
+                        "reason_code": "circuit_open",
+                        "retry_after_seconds": 30.0,
+                        "status": "rejected",
+                        "problem_retryability": "after_wait"
+                    },
+                    "bulkhead_full": {
+                        "class": "Enaxon\\Reqtide\\Exception\\AdmissionRejectedException",
+                        "reason_code": "concurrency_capacity_exhausted",
+                        "retry_after_seconds": null,
+                        "status": "rejected",
+                        "problem_retryability": "transient"
+                    },
+                    "deadline_exceeded": {
+                        "class": "Enaxon\\Reqtide\\Exception\\DeadlineExceededException",
+                        "reason_code": "deadline_exceeded",
+                        "problem_retryability": "never"
+                    },
+                    "retries_exhausted": {
+                        "detailed_mode": {
+                            "disposition": "failed",
+                            "problem_code": "attempts_exhausted",
+                            "attempts": 3
+                        },
+                        "simple_mode_exception": "Comparison\\UpstreamFailure",
+                        "typed_in_simple_mode": false
+                    }
+                },
+                "wall_ms": 17.6
+            },
+            "symfony-rate-limiter": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "Only cause produced: rate limit. {\"consume_rejected\":{\"class\":\"Symfony\\\\Component\\\\RateLimiter\\\\RateLimit\",\"isAccepted\":false,\"retryAfter\":\"1700000050\"},\"ensureAccepted\":{\"class\":\"Symfony\\\\Component\\\\RateLimiter\\\\Exception\\\\RateLimitExceededException\",\"isRateLimitExceeded\":true,\"getRetryAfter\":\"1700000050\"},\"reserve_maxTime\":{\"class\":\"Symfony\\\\Component\\\\RateLimiter\\\\Exception\\\\MaxWaitDurationExceededException\",\"isMaxWait\":true,\"hasRateLimit\":true}}. Library produces no circuit-open/bulkhead/deadline/retries-exhausted causes.",
+                "data": {
+                    "consume_rejected": {
+                        "class": "Symfony\\Component\\RateLimiter\\RateLimit",
+                        "isAccepted": false,
+                        "retryAfter": "1700000050"
+                    },
+                    "ensureAccepted": {
+                        "class": "Symfony\\Component\\RateLimiter\\Exception\\RateLimitExceededException",
+                        "isRateLimitExceeded": true,
+                        "getRetryAfter": "1700000050"
+                    },
+                    "reserve_maxTime": {
+                        "class": "Symfony\\Component\\RateLimiter\\Exception\\MaxWaitDurationExceededException",
+                        "isMaxWait": true,
+                        "hasRateLimit": true
+                    }
+                },
+                "wall_ms": 22.7
+            },
+            "symfony-http-client": {
+                "status": "FAIL",
+                "gap": "missing-capability",
+                "observation": "After retries are exhausted the final 503 is returned like any non-retried 5xx ({\"status_after_exhaustion\":503,\"exception_on_getContent\":\"Symfony\\\\Component\\\\HttpClient\\\\Exception\\\\ServerException\",\"info_retry_count\":2}). The only trace is the info key retry_count (an integer; consumers must compare it with their own max_retries to infer exhaustion). No distinct retries-exhausted type; no rate-limit/circuit/bulkhead/deadline causes are produced by this package.",
+                "data": {
+                    "status_after_exhaustion": 503,
+                    "exception_on_getContent": "Symfony\\Component\\HttpClient\\Exception\\ServerException",
+                    "info_retry_count": 2
+                },
+                "wall_ms": 86.5
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "FAIL",
+                "gap": "missing-capability",
+                "observation": "After exhaustion or a give_up_after_secs stop the final upstream response/exception is passed through unchanged ({\"outcome_after_exhaustion\":\"503\",\"X-Retry-Counter (opt-in expose_retry_header)\":\"2\"}); the middleware defines no exception types of its own and the only machine-readable trace is an opt-in response header. No rate-limit/circuit/bulkhead causes are produced by this package.",
+                "data": {
+                    "outcome_after_exhaustion": "503",
+                    "X-Retry-Counter (opt-in expose_retry_header)": "2"
+                },
+                "wall_ms": 4.7
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "The middleware never rejects: it sleeps until a slot is free and defines no exception types, so there is no rejection taxonomy to inspect.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "ackintosh-ganesha": {
+                "status": "FAIL",
+                "gap": "missing-capability",
+                "observation": "Only cause produced: circuit open. {\"rejection_class\":\"Ackintosh\\\\Ganesha\\\\Exception\\\\RejectedException\",\"is_RejectedException\":true,\"extra_public_methods\":[\"serviceName\"],\"has_retry_time_accessor\":false,\"raw_isAvailable_returns\":\"bool\"}. Library produces no rate-limit/bulkhead/deadline/retries-exhausted causes.",
+                "data": {
+                    "rejection_class": "Ackintosh\\Ganesha\\Exception\\RejectedException",
+                    "is_RejectedException": true,
+                    "extra_public_methods": [
+                        "serviceName"
+                    ],
+                    "has_retry_time_accessor": false,
+                    "raw_isAvailable_returns": "bool"
+                },
+                "wall_ms": 169.9
+            },
+            "matheus85-duat": {
+                "status": "FAIL",
+                "gap": "missing-capability",
+                "observation": "Typed and distinct: yes (CircuitOpenException, BulkheadFullException, RetryExhaustedException, TimeoutExceededException, all extending DuatException). Facts: {\"circuit_open\":{\"class\":\"Duat\\\\Exception\\\\CircuitOpenException\",\"public_fields\":[\"name\"],\"has_retry_time_field\":false},\"bulkhead_full\":{\"class\":\"Duat\\\\Exception\\\\BulkheadFullException\",\"public_fields\":[\"name\",\"maxConcurrent\"]},\"retries_exhausted\":{\"class\":\"Duat\\\\Exception\\\\RetryExhaustedException\",\"public_fields\":[\"attempts\"],\"has_retry_time_field\":false},\"deadline_exceeded\":{\"class\":\"Duat\\\\Exception\\\\TimeoutExceededException\",\"public_fields\":[\"name\",\"timeoutSeconds\",\"elapsedSeconds\"],\"has_retry_time_field\":false}}. CircuitOpenException exposes only the circuit name: no retry-at/remaining-cooldown. No rate-limit cause (no limiter). TimeoutExceededException is only thrown after the callable returns and only with throwOnLateSuccess.",
+                "data": {
+                    "circuit_open": {
+                        "class": "Duat\\Exception\\CircuitOpenException",
+                        "public_fields": [
+                            "name"
+                        ],
+                        "has_retry_time_field": false
+                    },
+                    "bulkhead_full": {
+                        "class": "Duat\\Exception\\BulkheadFullException",
+                        "public_fields": [
+                            "name",
+                            "maxConcurrent"
+                        ]
+                    },
+                    "retries_exhausted": {
+                        "class": "Duat\\Exception\\RetryExhaustedException",
+                        "public_fields": [
+                            "attempts"
+                        ],
+                        "has_retry_time_field": false
+                    },
+                    "deadline_exceeded": {
+                        "class": "Duat\\Exception\\TimeoutExceededException",
+                        "public_fields": [
+                            "name",
+                            "timeoutSeconds",
+                            "elapsedSeconds"
+                        ],
+                        "has_retry_time_field": false
+                    }
+                },
+                "wall_ms": 47.1
+            }
+        },
+        "S17": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "Exhaust at T, wall clock set back 3600s (VirtualClock::setWall, monotonic untouched), then 1s steps that advance both domains: {\"token_bucket\":{\"over_admitted_at_jump\":false,\"recovered_after_elapsed_seconds\":10,\"interval\":10},\"fixed_window_aligned\":{\"over_admitted_at_jump\":false,\"recovered_after_elapsed_seconds\":10,\"interval\":10},\"circuit_breaker\":{\"over_admitted_at_jump\":false,\"recovered_after_elapsed_seconds\":30,\"interval\":30}}. The memory backends measure with the monotonic clock; the wall clock is read once to place Aligned window boundaries.",
+                "data": {
+                    "token_bucket": {
+                        "over_admitted_at_jump": false,
+                        "recovered_after_elapsed_seconds": 10.0,
+                        "interval": 10
+                    },
+                    "fixed_window_aligned": {
+                        "over_admitted_at_jump": false,
+                        "recovered_after_elapsed_seconds": 10.0,
+                        "interval": 10
+                    },
+                    "circuit_breaker": {
+                        "over_admitted_at_jump": false,
+                        "recovered_after_elapsed_seconds": 30.0,
+                        "interval": 30
+                    }
+                },
+                "wall_ms": 9.5
+            },
+            "symfony-rate-limiter": {
+                "status": "FAIL",
+                "gap": "wall-clock-dependence",
+                "observation": "Exhaust at T, clock jumps back 3600s, then 1s steps: {\"token_bucket\":{\"over_admitted_at_jump\":false,\"recovered_after_elapsed_seconds\":3610,\"interval\":10},\"fixed_window\":{\"over_admitted_at_jump\":false,\"recovered_after_elapsed_seconds\":3610,\"interval\":10}}",
+                "data": {
+                    "token_bucket": {
+                        "over_admitted_at_jump": false,
+                        "recovered_after_elapsed_seconds": 3610.0,
+                        "interval": 10.0
+                    },
+                    "fixed_window": {
+                        "over_admitted_at_jump": false,
+                        "recovered_after_elapsed_seconds": 3610.0,
+                        "interval": 10.0
+                    }
+                },
+                "wall_ms": 122.9
+            },
+            "symfony-http-client": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "The only wall-clock use in the retry path is parsing an HTTP-date Retry-After; clock regression of limiter state is covered in the symfony/rate-limiter adapter. Not tested separately.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Keeps no cross-operation time-based state (no limiter or breaker); per-operation deadline use of time() is not part of this scenario.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "FAIL",
+                "gap": "wall-clock-dependence",
+                "observation": "limit 1/s; request at T, clock jumps back 3600s, next request: {\"slept_ms_requested_by_limiter\":3601000,\"virtual_seconds_until_second_request_reached_wire\":3601,\"interval_seconds\":1} (stored timestamps are in the \"future\", so the oldest-request age is negative and the computed delay is interval + 3600s).",
+                "data": {
+                    "slept_ms_requested_by_limiter": 3601000,
+                    "virtual_seconds_until_second_request_reached_wire": 3601.0,
+                    "interval_seconds": 1
+                },
+                "wall_ms": 2.1
+            },
+            "ackintosh-ganesha": {
+                "status": "FAIL",
+                "gap": "wall-clock-dependence",
+                "observation": "open at T, clock back 3600s, then 1s steps: {\"count\":{\"over_admitted_at_jump\":false,\"recovered_after_elapsed_seconds\":3631,\"interval\":30},\"rate\":{\"over_admitted_at_jump\":true,\"recovered_after_elapsed_seconds\":1,\"interval\":30}} (Rate strategy additionally keys counters by floor(time/window), so after a regression it reads the older window's counters).",
+                "data": {
+                    "count": {
+                        "over_admitted_at_jump": false,
+                        "recovered_after_elapsed_seconds": 3631.0,
+                        "interval": 30
+                    },
+                    "rate": {
+                        "over_admitted_at_jump": true,
+                        "recovered_after_elapsed_seconds": 1.0,
+                        "interval": 30
+                    }
+                },
+                "wall_ms": 17.4
+            },
+            "matheus85-duat": {
+                "status": "FAIL",
+                "gap": "wall-clock-dependence",
+                "observation": "circuit opened at T, clock back 3600s, then 1s steps: {\"over_admitted_at_jump\":false,\"recovered_after_elapsed_seconds\":3630,\"cooldown\":30} (opened_at lies in the future, so now - opened_at < cooldown until the clock catches up).",
+                "data": {
+                    "over_admitted_at_jump": false,
+                    "recovered_after_elapsed_seconds": 3630.0,
+                    "cooldown": 30
+                },
+                "wall_ms": 62.5
+            }
+        },
+        "S18": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "RecordingEventSink that throws on every emit (after recording). retry-once-then-succeed and 4-failure circuit trip: {\"control_without_throwing_observer\":{\"retry\":{\"result\":\"business-value\",\"disposition\":\"succeeded\",\"attempts\":2,\"events_seen_by_sink\":4,\"accounting_complete\":true},\"circuit\":{\"labels\":[\"fail\",\"fail\",\"fail\",\"fail\",\"rejected:circuit_open\"],\"transition_events_seen\":1}},\"throwing_observer\":{\"retry\":{\"result\":\"business-value\",\"disposition\":\"succeeded\",\"attempts\":2,\"events_seen_by_sink\":4,\"accounting_complete\":false},\"circuit\":{\"labels\":[\"fail\",\"fail\",\"fail\",\"fail\",\"rejected:circuit_open\"],\"transition_events_seen\":1}}}. Business result identical: retry yes, circuit yes. Effect on the caller is limited to summary.accountingComplete=false (a bounded diagnostic), never the result (OperationRun::emit()/complete() catch sink failures).",
+                "data": {
+                    "control_without_throwing_observer": {
+                        "retry": {
+                            "result": "business-value",
+                            "disposition": "succeeded",
+                            "attempts": 2,
+                            "events_seen_by_sink": 4,
+                            "accounting_complete": true
+                        },
+                        "circuit": {
+                            "labels": [
+                                "fail",
+                                "fail",
+                                "fail",
+                                "fail",
+                                "rejected:circuit_open"
+                            ],
+                            "transition_events_seen": 1
+                        }
+                    },
+                    "throwing_observer": {
+                        "retry": {
+                            "result": "business-value",
+                            "disposition": "succeeded",
+                            "attempts": 2,
+                            "events_seen_by_sink": 4,
+                            "accounting_complete": false
+                        },
+                        "circuit": {
+                            "labels": [
+                                "fail",
+                                "fail",
+                                "fail",
+                                "fail",
+                                "rejected:circuit_open"
+                            ],
+                            "transition_events_seen": 1
+                        }
+                    }
+                },
+                "wall_ms": 16.9
+            },
+            "symfony-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a rate limiter only: it has no retry, deadline, circuit breaker, bulkhead or event facilities, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "symfony-http-client": {
+                "status": "FAIL",
+                "gap": "behaviour-defect",
+                "observation": "retry once then 200 with a PSR-3 logger that throws on every call: operation outcome = Symfony\\Component\\HttpClient\\Exception\\TransportException (control without logger: 200; expected 200). RetryableHttpClient calls $logger->info() inside the async chunk handler without a try/catch.",
+                "data": {
+                    "outcome": "Symfony\\Component\\HttpClient\\Exception\\TransportException",
+                    "control": "200"
+                },
+                "wall_ms": 105.8
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "The only hook is on_retry_callback, which receives the request/options by reference and may mutate them, so it is an interceptor rather than an observer; no event/observer facility to test.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library only delays requests to a per-second/per-minute limit: it has no retry, deadline, circuit breaker, bulkhead, events or typed rejections, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "ackintosh-ganesha": {
+                "status": "FAIL",
+                "gap": "behaviour-defect",
+                "observation": "subscriber throws on the \"tripped\" event; 4th failure() call: {\"exception_escaped_from_failure()\":\"observer failed on tripped\",\"circuit_state_afterwards\":\"tripped\"}. Ganesha::notify() calls subscribers without try/catch (only StorageException is caught around the strategy call), so the caller's own failure handling is interrupted by the observer exception. State is recorded before notification.",
+                "data": {
+                    "exception_escaped_from_failure()": "observer failed on tripped",
+                    "circuit_state_afterwards": "tripped"
+                },
+                "wall_ms": 0.1
+            },
+            "matheus85-duat": {
+                "status": "FAIL",
+                "gap": "behaviour-defect",
+                "observation": "retry once then succeed, PSR-14 dispatcher throws on every event: {\"result\":null,\"exception_escaped\":\"observer failed on Duat\\\\Event\\\\RetryAttempted\",\"attempts_made\":1,\"control_without_observer\":\"business-value\"}. Context::dispatch() has no try/catch; RetryPolicy dispatches inside its catch block.",
+                "data": {
+                    "result": null,
+                    "exception_escaped": "observer failed on Duat\\Event\\RetryAttempted",
+                    "attempts_made": 1,
+                    "control_without_observer": "business-value"
+                },
+                "wall_ms": 45.4
+            }
+        },
+        "S19": {
+            "reqtide": {
+                "status": "INFO",
+                "gap": null,
+                "observation": "manifest-derived (packages/core/composer.json \"require\", not an installed resolution): 0 package dependencies. Source scan of packages/core/src: imports outside Enaxon\\Reqtide: (none).",
+                "data": {
+                    "require": {
+                        "php": ">=8.3",
+                        "php-64bit": "*"
+                    },
+                    "foreign_imports": []
+                },
+                "wall_ms": 1439.3
+            },
+            "symfony-rate-limiter": {
+                "status": "INFO",
+                "gap": null,
+                "observation": "2 transitive runtime package(s): symfony/deprecation-contracts, symfony/options-resolver",
+                "data": {
+                    "count": 2,
+                    "packages": [
+                        "symfony/deprecation-contracts",
+                        "symfony/options-resolver"
+                    ],
+                    "unresolved": [],
+                    "direct": [
+                        "symfony/options-resolver"
+                    ]
+                },
+                "wall_ms": 58.1
+            },
+            "symfony-http-client": {
+                "status": "INFO",
+                "gap": null,
+                "observation": "5 transitive runtime package(s): psr/container, psr/log, symfony/deprecation-contracts, symfony/http-client-contracts, symfony/service-contracts",
+                "data": {
+                    "count": 5,
+                    "packages": [
+                        "psr/container",
+                        "psr/log",
+                        "symfony/deprecation-contracts",
+                        "symfony/http-client-contracts",
+                        "symfony/service-contracts"
+                    ],
+                    "unresolved": [],
+                    "direct": [
+                        "psr/log",
+                        "symfony/deprecation-contracts",
+                        "symfony/http-client-contracts",
+                        "symfony/service-contracts"
+                    ]
+                },
+                "wall_ms": 0.1
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "INFO",
+                "gap": null,
+                "observation": "8 transitive runtime package(s): guzzlehttp/guzzle, guzzlehttp/promises, guzzlehttp/psr7, psr/http-client, psr/http-factory, psr/http-message, symfony/polyfill-php80, symfony/polyfill-php82",
+                "data": {
+                    "count": 8,
+                    "packages": [
+                        "guzzlehttp/guzzle",
+                        "guzzlehttp/promises",
+                        "guzzlehttp/psr7",
+                        "psr/http-client",
+                        "psr/http-factory",
+                        "psr/http-message",
+                        "symfony/polyfill-php80",
+                        "symfony/polyfill-php82"
+                    ],
+                    "unresolved": [],
+                    "direct": [
+                        "guzzlehttp/guzzle"
+                    ]
+                },
+                "wall_ms": 0.1
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "INFO",
+                "gap": null,
+                "observation": "8 transitive runtime package(s): guzzlehttp/guzzle, guzzlehttp/promises, guzzlehttp/psr7, psr/http-client, psr/http-factory, psr/http-message, symfony/polyfill-php80, symfony/polyfill-php82",
+                "data": {
+                    "count": 8,
+                    "packages": [
+                        "guzzlehttp/guzzle",
+                        "guzzlehttp/promises",
+                        "guzzlehttp/psr7",
+                        "psr/http-client",
+                        "psr/http-factory",
+                        "psr/http-message",
+                        "symfony/polyfill-php80",
+                        "symfony/polyfill-php82"
+                    ],
+                    "unresolved": [],
+                    "direct": [
+                        "guzzlehttp/guzzle"
+                    ]
+                },
+                "wall_ms": 0.1
+            },
+            "ackintosh-ganesha": {
+                "status": "INFO",
+                "gap": null,
+                "observation": "1 transitive runtime package(s): psr/http-message",
+                "data": {
+                    "count": 1,
+                    "packages": [
+                        "psr/http-message"
+                    ],
+                    "unresolved": [],
+                    "direct": [
+                        "psr/http-message"
+                    ]
+                },
+                "wall_ms": 0.0
+            },
+            "matheus85-duat": {
+                "status": "INFO",
+                "gap": null,
+                "observation": "0 transitive runtime package(s): (none)",
+                "data": {
+                    "count": 0,
+                    "packages": [],
+                    "unresolved": [],
+                    "direct": []
+                },
+                "wall_ms": 0.0
+            }
+        },
+        "S20": {
+            "reqtide": {
+                "status": "INFO",
+                "gap": null,
+                "observation": "manifest-derived: php \">=8.3\"",
+                "data": {
+                    "require": {
+                        "php": ">=8.3",
+                        "php-64bit": "*"
+                    }
+                },
+                "wall_ms": 11.0
+            },
+            "symfony-rate-limiter": {
+                "status": "INFO",
+                "gap": null,
+                "observation": "own php constraint \">=8.4.1\" (floor 8.4.1); highest floor in closure: 8.4.1",
+                "data": {
+                    "own": ">=8.4.1",
+                    "own_floor": "8.4.1",
+                    "closure_floor": "8.4.1",
+                    "closure": {
+                        "symfony/rate-limiter": ">=8.4.1",
+                        "symfony/deprecation-contracts": ">=8.1",
+                        "symfony/options-resolver": ">=8.4.1"
+                    }
+                },
+                "wall_ms": 0.3
+            },
+            "symfony-http-client": {
+                "status": "INFO",
+                "gap": null,
+                "observation": "own php constraint \">=8.4.1\" (floor 8.4.1); highest floor in closure: 8.4.1",
+                "data": {
+                    "own": ">=8.4.1",
+                    "own_floor": "8.4.1",
+                    "closure_floor": "8.4.1",
+                    "closure": {
+                        "symfony/http-client": ">=8.4.1",
+                        "psr/container": ">=7.4.0",
+                        "psr/log": ">=8.0.0",
+                        "symfony/deprecation-contracts": ">=8.1",
+                        "symfony/http-client-contracts": ">=8.1",
+                        "symfony/service-contracts": ">=8.1"
+                    }
+                },
+                "wall_ms": 0.1
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "INFO",
+                "gap": null,
+                "observation": "own php constraint \"^7.4|^8.0\" (floor 7.4); highest floor in closure: 7.4",
+                "data": {
+                    "own": "^7.4|^8.0",
+                    "own_floor": "7.4",
+                    "closure_floor": "7.4",
+                    "closure": {
+                        "caseyamcl/guzzle_retry_middleware": "^7.4|^8.0",
+                        "guzzlehttp/guzzle": "^7.4 || ^8.0",
+                        "guzzlehttp/promises": "^7.4 || ^8.0",
+                        "guzzlehttp/psr7": "^7.4 || ^8.0",
+                        "psr/http-client": "^7.0 || ^8.0",
+                        "psr/http-factory": ">=7.1",
+                        "psr/http-message": "^7.2 || ^8.0",
+                        "symfony/polyfill-php80": ">=7.2",
+                        "symfony/polyfill-php82": ">=7.2"
+                    }
+                },
+                "wall_ms": 0.4
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "INFO",
+                "gap": null,
+                "observation": "own php constraint \"^8.3\" (floor 8.3); highest floor in closure: 8.3",
+                "data": {
+                    "own": "^8.3",
+                    "own_floor": "8.3",
+                    "closure_floor": "8.3",
+                    "closure": {
+                        "spatie/guzzle-rate-limiter-middleware": "^8.3",
+                        "guzzlehttp/guzzle": "^7.4 || ^8.0",
+                        "guzzlehttp/promises": "^7.4 || ^8.0",
+                        "guzzlehttp/psr7": "^7.4 || ^8.0",
+                        "psr/http-client": "^7.0 || ^8.0",
+                        "psr/http-factory": ">=7.1",
+                        "psr/http-message": "^7.2 || ^8.0",
+                        "symfony/polyfill-php80": ">=7.2",
+                        "symfony/polyfill-php82": ">=7.2"
+                    }
+                },
+                "wall_ms": 0.2
+            },
+            "ackintosh-ganesha": {
+                "status": "INFO",
+                "gap": null,
+                "observation": "own php constraint \"^8.1\" (floor 8.1); highest floor in closure: 8.1",
+                "data": {
+                    "own": "^8.1",
+                    "own_floor": "8.1",
+                    "closure_floor": "8.1",
+                    "closure": {
+                        "ackintosh/ganesha": "^8.1",
+                        "psr/http-message": "^7.2 || ^8.0"
+                    }
+                },
+                "wall_ms": 0.1
+            },
+            "matheus85-duat": {
+                "status": "INFO",
+                "gap": null,
+                "observation": "own php constraint \">=8.3\" (floor 8.3); highest floor in closure: 8.3",
+                "data": {
+                    "own": ">=8.3",
+                    "own_floor": "8.3",
+                    "closure_floor": "8.3",
+                    "closure": {
+                        "matheus85/duat": ">=8.3"
+                    }
+                },
+                "wall_ms": 0.0
+            }
+        },
+        "S21": {
+            "reqtide": {
+                "status": "PASS",
+                "gap": null,
+                "observation": "PHPStan max: $r = $pipeline->execute(fn (AttemptContext $a): int => opaque(), $pipeline->newContext(Duration::seconds(5))) is inferred as \"int\". The literal-bodied callable `fn (): int => 1` (the form used for the other libraries) is inferred as \"1\" because PHPStan folds the constant; graded on the opaque-int callable so the expected type `int` is meaningful. 30 @template annotations in packages/core/src (execute() is declared \"@template T @param callable(AttemptContext):T $operation @return T\"; newContext() returns ExecutionContext<never> so the callable alone fixes T).",
+                "data": {
+                    "phpstan_level": "max",
+                    "inferred_type_opaque_int_callable": "int",
+                    "inferred_type_literal_callable": "1",
+                    "@template_annotations_in_core_src": 30,
+                    "phpstan_version": "2.3.1",
+                    "stderr": "",
+                    "other_messages": [
+                        "Cannot cast mixed to int."
+                    ]
+                },
+                "wall_ms": 27055.6
+            },
+            "symfony-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "Library is a rate limiter only: it has no retry, deadline, circuit breaker, bulkhead or event facilities, so this scenario does not apply.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "symfony-http-client": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "No public API that executes a user callback; the client returns ResponseInterface.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "caseyamcl-guzzle-retry": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "No public API that executes a user callback and returns its value; it is a Guzzle middleware over promises.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "spatie-guzzle-rate-limiter": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "No public API that executes a user callback and returns its value; it is a Guzzle middleware.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "ackintosh-ganesha": {
+                "status": "NOT_APPLICABLE",
+                "gap": null,
+                "observation": "No public API that executes a user callback; the caller drives isAvailable()/success()/failure() (bool/void), so there is no return type to preserve.",
+                "data": [],
+                "wall_ms": 0.0
+            },
+            "matheus85-duat": {
+                "status": "FAIL",
+                "gap": "missing-capability",
+                "observation": "PHPStan max: $r = Duat::for(\"x\")->retry()->call(fn (): int => 1) is inferred as \"mixed\"; 0 @template annotations in the library source (call() is declared \"@param callable(): mixed $fn\" and returns mixed).",
+                "data": {
+                    "phpstan_level": "max",
+                    "inferred_type": "mixed",
+                    "@template_annotations_in_duat_src": 0,
+                    "phpstan_version": "2.3.1",
+                    "stderr": ""
+                },
+                "wall_ms": 18673.5
+            }
+        }
+    }
+}

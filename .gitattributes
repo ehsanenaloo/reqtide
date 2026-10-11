@@ -1,0 +1,32 @@
+* text=auto eol=lf
+*.php  text eol=lf diff=php
+*.md   text eol=lf
+*.txt  text eol=lf
+*.json text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.lua  text eol=lf
+*.png  binary
+*.jpg  binary
+
+# Keep distributions lean (applies to `git archive`, GitHub release archives and Packagist dist downloads).
+# The adapter packages under packages/ are developed here and split into their own repositories at release; they are
+# not part of the enaxon/reqtide distribution.
+# The dist keeps exactly: src/ (including src/Testing), docs/ (including docs/llms.txt), composer.json, README.md,
+# LICENSE, NOTICE and CHANGELOG.md. UPGRADE.md stays in the repository only. The community files (CONTRIBUTING,
+# CODE_OF_CONDUCT, SECURITY, SUPPORT, RELEASING) live in .github/ and are therefore excluded with it.
+/.github/               export-ignore
+/tests/                 export-ignore
+/tools/                 export-ignore
+/benchmarks/            export-ignore
+/packages/              export-ignore
+/examples/              export-ignore
+/UPGRADE.md             export-ignore
+/phpunit.xml.dist       export-ignore
+/phpstan.neon.dist      export-ignore
+/infection.json5        export-ignore
+/.php-cs-fixer.dist.php export-ignore
+/.gitattributes         export-ignore
+/.gitignore             export-ignore
+/.editorconfig          export-ignore
+/composer.lock          export-ignore

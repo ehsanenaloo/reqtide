@@ -1,0 +1,4 @@
+result: payload after attempt 3
+callable invocations: 3
+second result: second call, first try
+ok

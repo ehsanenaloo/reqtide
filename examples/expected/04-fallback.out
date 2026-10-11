@@ -1,0 +1,18 @@
+-- A: callable fails, default scope
+value: stale-cache-value
+fallback runs: 1, received outcome kind: exception
+
+-- B: circuit open, default scope (BusinessOutcomesOnly)
+refused: circuit_open
+fallback runs: 0
+
+-- C: circuit open, FallbackScope::IncludeAdmissionRefusals
+value: stale-cache-value
+disposition: fallback_succeeded
+retained refusal: circuit_open
+dispatched: 0, fallback executions: 1
+
+-- D: the fallback itself fails
+thrown: Enaxon\Reqtide\Exception\FallbackFailedException
+problem.code: fallback_failed
+ok

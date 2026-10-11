@@ -1,0 +1,50 @@
+name: Sync labels
+
+# Run this by hand from the Actions tab, or it runs when labels.yml changes on main.
+# It creates or updates the issue labels listed in .github/labels.yml. It never deletes labels.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/labels.yml
+      - .github/workflows/sync-labels.yml
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  labels:
+    if: github.repository == 'ehsanenaloo/reqtide'
+    name: Create or update labels
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Create or update labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # labels.yml is a flat list of "- name / color / description" entries.
+          name="" color="" desc=""
+          flush() {
+            if [ -n "$name" ]; then
+              gh label create "$name" --color "$color" --description "$desc" --force
+            fi
+          }
+          while IFS= read -r line || [ -n "$line" ]; do
+            case "$line" in
+              "- name: "*) flush; name="${line#- name: }"; color=""; desc="" ;;
+              "  color: "*) color="${line#  color: }" ;;
+              "  description: "*) desc="${line#  description: }" ;;
+            esac
+          done < .github/labels.yml
+          flush

@@ -1,0 +1,17 @@
+# Dependencies and tool output
+/vendor/
+/build/
+/composer.lock
+.phpunit.cache/
+.php-cs-fixer.cache
+.phpstan.cache/
+
+# Local files
+.env
+.env.*
+!.env.example
+*.log
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

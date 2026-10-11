@@ -1,0 +1,7 @@
+# Every change needs review from the maintainer. Sensitive areas are listed
+# explicitly so they stay protected if ownership is ever split.
+*                          @ehsanenaloo
+/src/State/**              @ehsanenaloo
+/packages/redis/resources/** @ehsanenaloo
+/.github/**                @ehsanenaloo
+/tools/**                  @ehsanenaloo

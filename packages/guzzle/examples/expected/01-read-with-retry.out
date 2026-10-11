@@ -1,0 +1,3 @@
+healthy server: status 200, requests at the server: 1
+failing server: status 503, requests at the server: 3
+detailed: 3 dispatched, 2 retries, disposition failed

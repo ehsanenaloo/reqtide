@@ -1,0 +1,5 @@
+-- 1. A retry is charged like a first attempt
+first operation: ok (3 dispatches)
+second operation: rejected, dispatched 0, reason rate.exhausted
+-- 2. A cost above the capacity can never be admitted
+Enaxon\Reqtide\Exception\ImpossibleAdmissionException: rate.cost_exceeds_capacity

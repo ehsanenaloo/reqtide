@@ -1,0 +1,58 @@
+# Reqtide PHP
+
+> A resilience toolkit for PHP code that calls unreliable APIs. One pipeline combines a total deadline, retries with a retry budget, rate limiting, a circuit breaker, a bulkhead and opt-in fallbacks, with typed errors and a virtual clock for tests. Alpha: not released, not on Packagist, process-local state in the core package. No runtime dependencies beyond PHP 8.3+ (64-bit). Package name: enaxon/reqtide. Namespace: Enaxon\Reqtide. License: MIT.
+
+Written against the unreleased main branch (no version number exists yet). Checked 2026-10-09. Source: https://github.com/ehsanenaloo/reqtide
+
+Key facts for readers and tools:
+
+- State is process-local. It is not shared across PHP-FPM requests, workers or servers.
+- A running callback is never interrupted. The deadline is checked between steps.
+- Nothing is retried unless the caller asserts the call is safe to repeat, a retry budget exists and the exception class is listed as retryable.
+- There are no default timeouts or limits. The caller chooses every number.
+- Core alone has process-local state. Shared state (enaxon/reqtide-redis) and a Guzzle integration (enaxon/reqtide-guzzle) exist as separate packages in the development repository. They are not released and not on Packagist, and were run only in local Docker (PHP 8.3 to 8.5 command line, Redis 7.4.11 and 8.2.10, Guzzle 7.15.5). PHP-FPM, Sentinel, Cluster, Valkey and PSR-18 are not supported (see guides/limits.html).
+- It is not an HTTP client, a queue, or edge protection. It does not guarantee exactly-once execution.
+
+## Get started
+
+- [Install](guides/install.html): Install Reqtide PHP from a clone with a Composer path repository, or run the examples in Docker. Packagist is not available yet.
+- [Getting started](guides/getting-started.html): Build your first protected call: a retry, a retry budget, a rate limit, a circuit breaker and a total deadline, line by line.
+
+## Core ideas
+
+- [Concepts](guides/concepts.html): The pipeline you build once, the operation and its attempts, the one deadline that covers them, and the partition whose state they share.
+
+## Protections
+
+- [Choosing policies](guides/choosing-policies.html): Which protection answers which problem, how the classifier decides what counts as a failure, and the sizing rules Reqtide enforces. Start here, then read the guide for each protection.
+- [Retry and budget](guides/retry-and-budget.html): Retries with backoff and jitter, the safety statement every retry needs, the retry budget that stops a retry storm, and how Retry-After is honored or returned to you.
+- [Rate limiting](guides/rate-limiting.html): Token bucket, fixed window and an approximate sliding counter, what a charge means when retries are involved, and which refusal you get when the quota is spent.
+- [Circuit breaker](guides/circuit-breaker.html): How the circuit breaker judges a window of completed calls, opens, probes and closes again, what counts as a failure, and what a refusal looks like.
+- [Bulkhead and cooldown](guides/bulkhead-and-cooldown.html): Limit the work in flight with a leased bulkhead, and pause a whole partition after a server-stated wait with a shared cooldown. What each refuses and what a lease does not do.
+- [Fallback](guides/fallback.html): Attach a fallback to one operation, choose whether it may also replace refusals by the rate limit, circuit breaker, bulkhead or cooldown, and know what it never replaces.
+
+## Errors and tests
+
+- [Error handling](guides/error-handling.html): Tell your own failures from Reqtide decisions, branch on ReasonCode and Problem, and read the full account of an operation in detailed mode.
+- [Testing with the virtual clock](guides/testing.html): Test retries, backoff, deadlines and circuits without sleeping: a virtual clock, scripted attempts and recorded events.
+
+## Packages
+
+- [Shared state with Redis](guides/redis.html): Share one rate limit, circuit breaker, bulkhead, retry budget and cooldown between PHP processes with the Redis package. Set-up, ACL users, TLS, what each failure means, maintenance, and what a restart loses.
+- [Guzzle requests with Reqtide](guides/guzzle.html): Wrap Guzzle requests with retries, deadlines, rate limits and circuit breaking. You state what may be sent twice. Body replay, Retry-After, the shared cooldown, client defaults, connection reuse, promises and limits.
+
+## Reference
+
+- [API reference](guides/api-reference.html): The public surface you use day to day, with signatures generated from the real classes: PipelineBuilder, CompiledPipeline, ExceptionClassifier, policies, outcomes, events, Problem and the test helpers. The classes of the Redis and Guzzle packages have their own groups.
+- [Limits and non-guarantees](guides/limits.html): An honest list of what the alpha does not do, what Reqtide never promises, what it commits to, and what is only planned.
+
+## Trust and help
+
+- [Comparison with other libraries](guides/comparison.html): A behavior comparison with six PHP libraries, written and run by the Reqtide author, with every caveat that applies.
+- [FAQ](guides/faq.html): Short answers to common questions about install, behavior, errors, testing and contributing.
+
+## Optional
+
+- [Changelog](https://github.com/ehsanenaloo/reqtide/blob/main/CHANGELOG.md): notable changes.
+- [Examples](https://github.com/ehsanenaloo/reqtide/tree/main/examples): runnable scripts with recorded output.
+- [Security policy](https://github.com/ehsanenaloo/reqtide/blob/main/.github/SECURITY.md): report vulnerabilities privately.

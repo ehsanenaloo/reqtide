@@ -1,0 +1,19 @@
+-- 1: backoff without sleeping
+result: ok
+dispatches: 3
+delays (ms): 100, 200
+virtual time elapsed (ms): 300
+events: retry->attempt 2 (exception_retryable), retry->attempt 3 (exception_retryable)
+
+-- 2: a deadline that is too short for the next backoff
+disposition: failed
+dispatches: 2
+retry stop reason: retry_delay_exceeds_deadline
+
+-- 3: circuit recovery by advancing the clock
+while open: circuit_open
+after 31 virtual seconds: recovered
+
+-- 4: seeded jitter
+same seed, same delays: yes
+ok

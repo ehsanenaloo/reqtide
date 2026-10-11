@@ -1,0 +1,119 @@
+{
+    "name": "enaxon/reqtide",
+    "description": "Dependency-free resilience core for PHP: deadlines, retries, rate limiting, circuit breaking and bulkheads with explicit, testable guarantees.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "rate-limit",
+        "rate-limiter",
+        "circuit-breaker",
+        "retry",
+        "resilience",
+        "bulkhead",
+        "http",
+        "api"
+    ],
+    "homepage": "https://github.com/ehsanenaloo/reqtide",
+    "authors": [
+        {
+            "name": "Ehsan Enaloo",
+            "homepage": "https://github.com/ehsanenaloo"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/ehsanenaloo/reqtide/issues",
+        "source": "https://github.com/ehsanenaloo/reqtide",
+        "docs": "https://github.com/ehsanenaloo/reqtide/tree/main/docs",
+        "security": "https://github.com/ehsanenaloo/reqtide/security/policy"
+    },
+    "require": {
+        "php": ">=8.3",
+        "php-64bit": "*"
+    },
+    "require-dev": {
+        "ext-bcmath": "*",
+        "friendsofphp/php-cs-fixer": "^3.64",
+        "guzzlehttp/guzzle": "^7.15.5",
+        "infection/infection": "^0.35.6",
+        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan-strict-rules": "^2.0",
+        "phpunit/phpunit": "^12.0",
+        "predis/predis": "^3.7"
+    },
+    "autoload": {
+        "psr-4": {
+            "Enaxon\\Reqtide\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Enaxon\\Reqtide\\Tests\\": "tests/",
+            "Enaxon\\Reqtide\\Redis\\": "packages/redis/src/",
+            "Enaxon\\Reqtide\\Redis\\Tests\\": "packages/redis/tests/",
+            "Enaxon\\Reqtide\\Guzzle\\": "packages/guzzle/src/",
+            "Enaxon\\Reqtide\\Guzzle\\Tests\\": "packages/guzzle/tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "infection/extension-installer": false
+        },
+        "sort-packages": true,
+        "optimize-autoloader": true
+    },
+    "minimum-stability": "stable",
+    "scripts": {
+        "test": "phpunit --colors=always --exclude-testsuite redis,redis-clock,redis-tls",
+        "test:redis": "phpunit --colors=always --testsuite redis",
+        "test:redis-clock": "phpunit --colors=always --testsuite redis-clock",
+        "test:redis-tls": "phpunit --colors=always --testsuite redis-tls",
+        "check:redis": "bash tools/check-redis.sh",
+        "check:redis-clock": "bash tools/check-redis-clock.sh",
+        "check:redis-tls": "bash tools/check-redis-tls.sh",
+        "test:coverage": "phpunit --coverage-text --coverage-clover=build/coverage.xml",
+        "coverage": "phpunit --coverage-text --coverage-clover=build/coverage/clover.xml --coverage-html=build/coverage/html",
+        "mutation": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php tools/mutation-config.php",
+            "infection --show-mutations --no-progress --only-covering-test-cases"
+        ],
+        "stan": "phpstan analyse --memory-limit=1G",
+        "cs": "php-cs-fixer fix --dry-run --diff",
+        "cs:fix": "php-cs-fixer fix",
+        "validate:manifest": [
+            "composer validate --strict",
+            "composer validate --strict --no-check-publish packages/redis/composer.json",
+            "composer validate --strict --no-check-publish packages/guzzle/composer.json"
+        ],
+        "docs": [
+            "@php tools/build-docs-api.php",
+            "@php tools/build-docs-index.php"
+        ],
+        "docs:check": [
+            "@php tools/build-docs-api.php --check",
+            "@php tools/build-docs-index.php --check",
+            "@php tools/check-docs.php"
+        ],
+        "check": [
+            "@validate:manifest",
+            "@cs",
+            "@stan",
+            "@test"
+        ]
+    },
+    "scripts-descriptions": {
+        "check": "Run manifest validation, style, static analysis and tests",
+        "test": "Run the PHPUnit suites that need no external service (core, testing, redis-unit)",
+        "test:redis": "Run the Redis integration suite against the server named by RT_REDIS_HOST (skips with a reason when unset, fails when RT_REQUIRE_REDIS=1)",
+        "test:redis-tls": "Run the TLS suite against the Redis server named by RT_REDIS_HOST, with the throwaway CA named by RT_TLS_CA",
+        "check:redis-tls": "Start Redis 7.4.11 and 8.2.10 with TLS in Docker (compose profile redis-tls) and run the TLS suite against each",
+        "test:redis-clock": "Run the contract suites against the Redis server named by RT_REDIS_HOST whose clock the tests control through RT_FAKETIME_FILE",
+        "check:redis-clock": "Start Redis 7.4.11 and 8.2.10 under libfaketime in Docker (compose profile redis-time) and run the contract suites against each",
+        "check:redis": "Start Redis 7.4.11 and 8.2.10 in Docker (compose profile redis) and run the Redis suites on one PHP lane against both",
+        "validate:manifest": "Run composer validate --strict on composer.json and on each packages/*/composer.json",
+        "docs": "Regenerate the API reference page and the documentation search index from src/ and the docs pages",
+        "docs:check": "Fail when a generated documentation file is stale or a code block in the docs does not match its example",
+        "coverage": "Run PHPUnit with pcov and write text, Clover and HTML reports under build/coverage",
+        "mutation": "Run Infection mutation testing on src; reports under build/infection"
+    }
+}

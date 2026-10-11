@@ -1,0 +1,37 @@
+{
+    "name": "enaxon/reqtide-guzzle",
+    "description": "Guzzle integration for Reqtide: retries, deadlines, rate limits, circuit breaking and bulkheads around Guzzle 7 requests. Work in progress, not released.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["guzzle", "http", "rate-limit", "circuit-breaker", "retry", "resilience", "bulkhead"],
+    "homepage": "https://github.com/ehsanenaloo/reqtide",
+    "authors": [
+        { "name": "Ehsan Enaloo", "homepage": "https://github.com/ehsanenaloo" }
+    ],
+    "support": {
+        "issues": "https://github.com/ehsanenaloo/reqtide/issues",
+        "source": "https://github.com/ehsanenaloo/reqtide",
+        "docs": "https://github.com/ehsanenaloo/reqtide/tree/main/docs",
+        "security": "https://github.com/ehsanenaloo/reqtide/security/policy"
+    },
+    "require": {
+        "php": ">=8.3",
+        "ext-curl": "*",
+        "enaxon/reqtide": "self.version",
+        "guzzlehttp/guzzle": "^7.15.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Enaxon\\Reqtide\\Guzzle\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Enaxon\\Reqtide\\Guzzle\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable"
+}

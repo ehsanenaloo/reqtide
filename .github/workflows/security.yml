@@ -1,0 +1,38 @@
+name: Security
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  composer-audit:
+    if: github.repository == 'ehsanenaloo/reqtide'
+    name: Composer audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: "8.4"
+          extensions: bcmath, curl
+          coverage: none
+          tools: composer:v2
+
+      - name: Resolve dependencies
+        run: composer update --no-interaction --no-progress --prefer-dist
+
+      - name: Audit dependencies
+        run: composer audit --abandoned=report
+
+      - name: Audit the comparison harness lock
+        run: composer audit --abandoned=report --locked --working-dir=benchmarks/comparison

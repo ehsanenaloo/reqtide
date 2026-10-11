@@ -1,0 +1,11 @@
+-- backoff without sleeping
+ok: the third dispatch succeeds
+ok: exactly three dispatches
+ok: exponential backoff waited 100 ms, then 200 ms
+ok: the virtual clock moved by exactly those two delays
+ok: two RetryScheduled events were recorded
+-- circuit recovery by advancing the clock
+ok: the third call is refused while the circuit is open
+ok: the refused call was never dispatched
+ok: a probe is admitted after the open duration
+ok: the probe was dispatched

@@ -1,0 +1,1373 @@
+<!doctype html>
+<html lang="en" dir="ltr" data-root="../">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API reference | Reqtide PHP documentation</title>
+<meta name="description" content="The public surface you use day to day, with signatures generated from the real classes: PipelineBuilder, CompiledPipeline, ExceptionClassifier, policies, outcomes, events, Problem and the test helpers. The classes of the Redis and Guzzle packages have their own groups.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0f5c99">
+<meta property="og:type" content="website">
+<meta property="og:title" content="API reference | Reqtide PHP documentation">
+<meta property="og:description" content="The public surface you use day to day, with signatures generated from the real classes: PipelineBuilder, CompiledPipeline, ExceptionClassifier, policies, outcomes, events, Problem and the test helpers. The classes of the Redis and Guzzle packages have their own groups.">
+<meta name="twitter:card" content="summary">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../styles.css">
+<script>try{var t=localStorage.getItem("rt-docs-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+<script defer src="../app.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a><header class="site-header"><div class="shell header-inner"><a class="brand" href="../index.html"><img src="../assets/logo.svg" width="34" height="34" alt=""><span>Reqtide PHP<small>Documentation</small></span></a><nav class="top-nav" aria-label="Primary"><a href="../index.html">Overview</a><a href="../guides/getting-started.html">Getting started</a><a href="../guides/index.html">All guides</a><a href="../guides/api-reference.html" aria-current="page">API reference</a><a href="../guides/faq.html">FAQ</a><a href="https://github.com/ehsanenaloo/reqtide" rel="noopener">GitHub &#8599;</a></nav><div class="header-tools"><span data-search-host></span><button type="button" class="icon-button" data-theme-toggle hidden>Theme</button></div></div></header>
+<main id="main">
+<div class="shell page-intro"><p class="breadcrumbs"><a href="../index.html">Home</a> / <a href="index.html">Guides</a> / Reference</p><h1>API reference</h1><p class="lead">Every signature on this page is generated from the classes in src/ and checked against them, so the page cannot drift from the code. The one-line descriptions are written by hand.</p><p class="meta-line">Applies to the unreleased alpha (no version number yet). Checked 2026-10-09 against the working tree.</p></div>
+<div class="shell doc-layout has-toc">
+<aside class="sidebar"><details open><summary>Browse the guides</summary><nav aria-label="Guides"><a href="index.html">All guides</a><p>Get started</p><a href="install.html">Install</a><a href="getting-started.html">Getting started</a><p>Core ideas</p><a href="concepts.html">Concepts</a><p>Protections</p><a href="choosing-policies.html">Choosing policies</a><a href="retry-and-budget.html">Retry and budget</a><a href="rate-limiting.html">Rate limiting</a><a href="circuit-breaker.html">Circuit breaker</a><a href="bulkhead-and-cooldown.html">Bulkhead and cooldown</a><a href="fallback.html">Fallback</a><p>Errors and tests</p><a href="error-handling.html">Error handling</a><a href="testing.html">Testing with the virtual clock</a><p>Packages</p><a href="redis.html">Shared state with Redis</a><a href="guzzle.html">Guzzle requests with Reqtide</a><p>Reference</p><a href="api-reference.html" aria-current="page">API reference</a><a href="limits.html">Limits and non-guarantees</a><p>Trust and help</p><a href="comparison.html">Comparison with other libraries</a><a href="faq.html">FAQ</a></nav></details></aside>
+<article class="prose">
+<aside class="callout warn"><span class="callout-title">Alpha</span><p>Nothing is released and no version number exists. Any name or signature may change without notice. See <a href="limits.html">Limits and non-guarantees</a>.</p></aside>
+<h2 id="how-to-read-this-page">How to read this page<a class="anchor" href="#how-to-read-this-page" aria-label="Link to this section">#</a></h2>
+<p>The types of the core package live under the namespace <code>Enaxon\Reqtide</code>; each heading shows the namespace after the class name. The last four groups on this page list classes of two separate packages, <code>enaxon/reqtide-redis</code> (namespace <code>Enaxon\Reqtide\Redis</code>) and <code>enaxon/reqtide-guzzle</code> (namespace <code>Enaxon\Reqtide\Guzzle</code>). Those packages are not released and not part of the core archive. Listings show the public surface in source order: constructors, public properties, enum cases and public methods. Members marked <code>@internal</code> in the source are left out. Parameter types are shown without namespaces.</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Table, scrolls sideways on narrow screens"><table><thead><tr><th scope="col">Namespace</th><th scope="col">What it holds</th></tr></thead><tbody><tr><td><code>Pipeline</code></td><td>The builder, the compiled pipeline and the in-memory environment.</td></tr><tr><td><code>Execution</code>, <code>Fallback</code></td><td>Per-operation context, the safety statement and the fallback contract.</td></tr><tr><td><code>Outcome</code></td><td>Classifiers and the verdicts they return.</td></tr><tr><td><code>Policy</code>, <code>Value</code></td><td>Option enums and objects, <code>Duration</code> and <code>Ratio</code>.</td></tr><tr><td><code>Completion</code></td><td>The result of detailed execution.</td></tr><tr><td><code>Error</code>, <code>Exception</code></td><td><code>ReasonCode</code>, <code>Problem</code> and the typed exceptions.</td></tr><tr><td><code>Telemetry</code></td><td>Typed events and the sink contract.</td></tr><tr><td><code>Testing</code></td><td>Test helpers, shipped in the same package.</td></tr><tr><td><code>Redis</code></td><td>Shared state on Redis. Separate package <code>enaxon/reqtide-redis</code>. See <a href="redis.html">Shared state with Redis</a>.</td></tr><tr><td><code>Guzzle</code></td><td>Guzzle integration. Separate package <code>enaxon/reqtide-guzzle</code>. See <a href="guzzle.html">Guzzle requests with Reqtide</a>.</td></tr></tbody></table></div>
+<p>Lower-level extension points are not listed here yet: the state backends in <code>State</code>, the runtime adapters in <code>Runtime</code>, the clocks and schedulers in <code>Time</code>, and the identifier value types. They exist in <a href="https://github.com/ehsanenaloo/reqtide/tree/main/src" rel="noopener"><code>src/</code></a> for hand-built environments, such as the one in <a href="testing.html">Testing with the virtual clock</a>.</p>
+<h2 id="the-shortest-path-through-the-surface">The shortest path through the surface<a class="anchor" href="#the-shortest-path-through-the-surface" aria-label="Link to this section">#</a></h2>
+<ol><li><code>PipelineBuilder::profile()</code>, then <code>partition()</code>, <code>attemptTimeout()</code> and any policy methods, then <code>compileInMemory($classifier)</code>.</li><li><code>$pipeline-&gt;newContext(Duration $timeout, ...)</code> for each operation.</li><li><code>$pipeline-&gt;execute($callable, $context)</code> for a value or an exception, or <code>executeDetailed()</code> for an <code>ExecutionCompletion</code>.</li></ol>
+<p>Start with <a href="getting-started.html">Getting started</a> if you have not run that sequence yet.</p>
+<!-- api:begin -->
+<h2 id="build">Build a pipeline<a class="anchor" href="#build" aria-label="Link to this section">#</a></h2>
+<p>Everything you need at start-up. <code>PipelineBuilder</code> assembles and validates the configuration, <code>compileInMemory()</code> wires process-local state, and the result is a <code>CompiledPipeline</code> you reuse. Every number is yours: the builder has no defaults.</p>
+<h3 id="pipeline-pipelinebuilder"><code>PipelineBuilder</code> <small>Enaxon\Reqtide\Pipeline</small></h3>
+<p>Fluent, immutable builder: every call returns a new builder. <code>profile()</code>, <code>partition()</code> and <code>attemptTimeout()</code> are required; a policy exists only if you call its method. A bad value raises <code>InvalidConfigurationException</code> naming the option.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of PipelineBuilder" data-api="Enaxon\Reqtide\Pipeline\PipelineBuilder"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> PipelineBuilder {
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> profile(<span class="tk-k">string</span> <span class="tk-v">$id</span>, <span class="tk-k">string</span> <span class="tk-v">$version</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> partition(
+        <span class="tk-k">string</span> <span class="tk-v">$application</span>,
+        <span class="tk-k">string</span> <span class="tk-v">$environment</span>,
+        <span class="tk-k">string</span> <span class="tk-v">$subject</span>,
+        ?<span class="tk-k">string</span> <span class="tk-v">$tenant</span> = <span class="tk-k">null</span>,
+    ): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> attemptTimeout(
+        Duration <span class="tk-v">$maximumDuration</span>,
+        AttemptTimeoutRequirement <span class="tk-v">$requirement</span>,
+    ): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> retry(
+        <span class="tk-k">int</span> <span class="tk-v">$maxAttempts</span>,
+        BackoffMode <span class="tk-v">$backoff</span>,
+        Duration <span class="tk-v">$baseDelay</span>,
+        Duration <span class="tk-v">$maximumDelay</span>,
+        JitterMode <span class="tk-v">$jitter</span>,
+        ?Duration <span class="tk-v">$minimumRemainingAttemptAllowance</span> = <span class="tk-k">null</span>,
+    ): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> retryBudget(
+        <span class="tk-k">int</span> <span class="tk-v">$capacityTokens</span>,
+        <span class="tk-k">int</span> <span class="tk-v">$refillTokens</span>,
+        Duration <span class="tk-v">$refillInterval</span>,
+        Duration <span class="tk-v">$reservationLease</span>,
+    ): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> rateLimit(
+        RateAlgorithmOptions <span class="tk-v">$algorithm</span>,
+        <span class="tk-k">int</span> <span class="tk-v">$cost</span> = <span class="tk-n">1</span>,
+    ): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> circuitBreaker(
+        CircuitWindowOptions <span class="tk-v">$window</span>,
+        <span class="tk-k">int</span> <span class="tk-v">$minimumSamples</span>,
+        Ratio <span class="tk-v">$failureThreshold</span>,
+        Duration <span class="tk-v">$openDuration</span>,
+        <span class="tk-k">int</span> <span class="tk-v">$probeCapacity</span>,
+        <span class="tk-k">int</span> <span class="tk-v">$probeSuccessThreshold</span>,
+        Duration <span class="tk-v">$permitLease</span>,
+    ): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> bulkhead(<span class="tk-k">int</span> <span class="tk-v">$capacity</span>, Duration <span class="tk-v">$lease</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> cooldown(
+        Duration <span class="tk-v">$cleanupGrace</span>,
+        ?Duration <span class="tk-v">$maximumExtension</span> = <span class="tk-k">null</span>,
+    ): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> fallbackScope(FallbackScope <span class="tk-v">$scope</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> tokenBucket(
+        <span class="tk-k">int</span> <span class="tk-v">$capacity</span>,
+        <span class="tk-k">int</span> <span class="tk-v">$refillTokens</span>,
+        Duration <span class="tk-v">$refillInterval</span>,
+    ): TokenBucketOptions;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> fixedWindow(
+        <span class="tk-k">int</span> <span class="tk-v">$capacity</span>,
+        Duration <span class="tk-v">$window</span>,
+        FixedWindowAnchor <span class="tk-v">$anchor</span>,
+    ): FixedWindowOptions;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> slidingWindow(
+        <span class="tk-k">int</span> <span class="tk-v">$capacity</span>,
+        Duration <span class="tk-v">$window</span>,
+    ): SlidingCounterOptions;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> lastCalls(<span class="tk-k">int</span> <span class="tk-v">$completedSamples</span>): CountCircuitWindow;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> timeWindow(
+        Duration <span class="tk-v">$window</span>,
+        Duration <span class="tk-v">$bucketGranularity</span>,
+    ): TimeCircuitWindow;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> definition(): PipelineDefinition;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> compile(RuntimeEnvironment <span class="tk-v">$environment</span>): CompiledPipeline;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> compileInMemory(
+        OutcomeClassifier <span class="tk-v">$classifier</span>,
+        ?EventSink <span class="tk-v">$events</span> = <span class="tk-k">null</span>,
+    ): CompiledPipeline;
+}</code></pre>
+<dl class="api-methods"><dt><code>profile()</code></dt><dd>Names and versions the configuration. Change the version when settings change; shared state is keyed by it.</dd><dt><code>partition()</code></dt><dd>Whose state this is: application, environment, subject and an optional tenant. One pipeline serves exactly one partition.</dd><dt><code>attemptTimeout()</code></dt><dd>The longest one attempt may take. Use <code>Cooperative</code> with the synchronous runtime.</dd><dt><code>retry()</code></dt><dd>Up to <code>maxAttempts</code> attempts, the first included. More than one needs <code>retryBudget()</code> and a replay-safety assertion on every call.</dd><dt><code>retryBudget()</code></dt><dd>A token pool that pays for retries so a failing dependency is not hammered.</dd><dt><code>rateLimit()</code></dt><dd>Charges <code>cost</code> units per dispatch, retries included. Takes the result of <code>tokenBucket()</code>, <code>fixedWindow()</code> or <code>slidingWindow()</code>.</dd><dt><code>circuitBreaker()</code></dt><dd>Judges a window of completed calls, opens at a failure share, probes after the open duration.</dd><dt><code>bulkhead()</code></dt><dd>At most <code>capacity</code> operations in flight; <code>lease</code> bounds a slot whose owner vanished.</dd><dt><code>cooldown()</code></dt><dd>A shared pause after a server-stated wait. Needs a classifier that reports waits.</dd><dt><code>fallbackScope()</code></dt><dd>Whether a fallback may also replace admission refusals.</dd><dt><code>tokenBucket()</code></dt><dd>Rate algorithm: capacity, refill tokens per interval.</dd><dt><code>fixedWindow()</code></dt><dd>Rate algorithm: capacity per window, aligned to the epoch or to the first hit.</dd><dt><code>slidingWindow()</code></dt><dd>Rate algorithm: an approximate sliding counter.</dd><dt><code>lastCalls()</code></dt><dd>Circuit window over the last N completed calls.</dd><dt><code>timeWindow()</code></dt><dd>Circuit window over a duration, kept in buckets.</dd><dt><code>definition()</code></dt><dd>Validates the composition and returns the immutable <code>PipelineDefinition</code>.</dd><dt><code>compile()</code></dt><dd>Compiles against a hand-built <code>RuntimeEnvironment</code>, for example with test helpers.</dd><dt><code>compileInMemory()</code></dt><dd>Compiles with the real clock, sleeping delays and process-local memory backends. There is no default classifier.</dd></dl>
+<h3 id="pipeline-compiledpipeline"><code>CompiledPipeline</code> <small>Enaxon\Reqtide\Pipeline</small></h3>
+<p>The reusable pipeline. It holds the state that makes limits work, so build it once and share it. It has no per-operation state.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of CompiledPipeline" data-api="Enaxon\Reqtide\Pipeline\CompiledPipeline"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> CompiledPipeline {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> newContext(
+        Duration <span class="tk-v">$timeout</span>,
+        ?OperationSafety <span class="tk-v">$safety</span> = <span class="tk-k">null</span>,
+        ?FallbackOperation <span class="tk-v">$fallback</span> = <span class="tk-k">null</span>,
+        ?Cancellation <span class="tk-v">$cancellation</span> = <span class="tk-k">null</span>,
+        ?BoundedMetadata <span class="tk-v">$attributes</span> = <span class="tk-k">null</span>,
+        OperationId|<span class="tk-k">string</span>|<span class="tk-k">null</span> <span class="tk-v">$operationId</span> = <span class="tk-k">null</span>,
+        ?PartitionIdentity <span class="tk-v">$partition</span> = <span class="tk-k">null</span>,
+    ): ExecutionContext;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> execute(
+        <span class="tk-k">callable</span> <span class="tk-v">$operation</span>,
+        ExecutionContext <span class="tk-v">$context</span>,
+    ): <span class="tk-k">mixed</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> executeDetailed(
+        <span class="tk-k">callable</span> <span class="tk-v">$operation</span>,
+        ExecutionContext <span class="tk-v">$context</span>,
+    ): ExecutionCompletion;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> executeOperation(
+        AttemptOperation <span class="tk-v">$operation</span>,
+        ExecutionContext <span class="tk-v">$context</span>,
+    ): <span class="tk-k">mixed</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> executeOperationDetailed(
+        AttemptOperation <span class="tk-v">$operation</span>,
+        ExecutionContext <span class="tk-v">$context</span>,
+    ): ExecutionCompletion;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> explain(): PipelineExplanation;
+}</code></pre>
+<dl class="api-methods"><dt><code>newContext()</code></dt><dd>One context per operation: the total deadline, the replay-safety statement, an optional fallback, cancellation and an operation id.</dd><dt><code>execute()</code></dt><dd>Runs a callable through the pipeline. Returns your value, throws your own exception unchanged, or throws a Reqtide refusal.</dd><dt><code>executeDetailed()</code></dt><dd>Same run, but returns an <code>ExecutionCompletion</code> instead of throwing for business or policy outcomes.</dd><dt><code>executeOperation()</code></dt><dd>Like <code>execute()</code> for an <code>AttemptOperation</code> object instead of a callable.</dd><dt><code>executeOperationDetailed()</code></dt><dd>Like <code>executeDetailed()</code> for an <code>AttemptOperation</code>.</dd><dt><code>explain()</code></dt><dd>Describes the configured policies and the runtime capabilities. No I/O and no state change.</dd></dl>
+<h3 id="pipeline-inmemoryenvironment"><code>InMemoryEnvironment</code> <small>Enaxon\Reqtide\Pipeline</small></h3>
+<p>Wires the runtime for one process: system clock, a scheduler that really sleeps, secure randomness and a memory backend for each configured policy. This is what <code>compileInMemory()</code> uses.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of InMemoryEnvironment" data-api="Enaxon\Reqtide\Pipeline\InMemoryEnvironment"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> InMemoryEnvironment {
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> <span class="tk-k">for</span>(
+        PipelineDefinition <span class="tk-v">$definition</span>,
+        OutcomeClassifier <span class="tk-v">$classifier</span>,
+        ?EventSink <span class="tk-v">$events</span> = <span class="tk-k">null</span>,
+    ): RuntimeEnvironment;
+}</code></pre>
+<h3 id="pipeline-pipelineexplanation"><code>PipelineExplanation</code> <small>Enaxon\Reqtide\Pipeline</small></h3>
+<p>What <code>explain()</code> returns: profile, enabled policies and capability notes such as <code>physical_stop=not_guaranteed</code>.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of PipelineExplanation" data-api="Enaxon\Reqtide\Pipeline\PipelineExplanation"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> PipelineExplanation {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> ProfileId <span class="tk-v">$profileId</span>,
+        <span class="tk-k">public</span> ProfileVersion <span class="tk-v">$profileVersion</span>,
+        <span class="tk-k">public</span> <span class="tk-k">array</span> <span class="tk-v">$enabledPolicies</span>,
+        <span class="tk-k">public</span> <span class="tk-k">array</span> <span class="tk-v">$capabilityNotes</span>,
+    );
+}</code></pre>
+<h3 id="value-duration"><code>Duration</code> <small>Enaxon\Reqtide\Value</small></h3>
+<p>A non-negative integer count of nanoseconds. Arithmetic is checked: overflow throws and never wraps.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of Duration" data-api="Enaxon\Reqtide\Value\Duration"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> Duration {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(<span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$nanoseconds</span>);
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> zero(): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> nanoseconds(<span class="tk-k">int</span> <span class="tk-v">$value</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> microseconds(<span class="tk-k">int</span> <span class="tk-v">$value</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> milliseconds(<span class="tk-k">int</span> <span class="tk-v">$value</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> seconds(<span class="tk-k">int</span> <span class="tk-v">$value</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> isZero(): <span class="tk-k">bool</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> isPositive(): <span class="tk-k">bool</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> add(<span class="tk-k">self</span> <span class="tk-v">$other</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> subtract(<span class="tk-k">self</span> <span class="tk-v">$other</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> saturatingSubtract(<span class="tk-k">self</span> <span class="tk-v">$other</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> multiply(<span class="tk-k">int</span> <span class="tk-v">$factor</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> min(<span class="tk-k">self</span> <span class="tk-v">$other</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> max(<span class="tk-k">self</span> <span class="tk-v">$other</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> compare(<span class="tk-k">self</span> <span class="tk-v">$other</span>): <span class="tk-k">int</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> equals(<span class="tk-k">self</span> <span class="tk-v">$other</span>): <span class="tk-k">bool</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> ceilMicroseconds(): <span class="tk-k">int</span>;
+}</code></pre>
+<h3 id="value-ratio"><code>Ratio</code> <small>Enaxon\Reqtide\Value</small></h3>
+<p>A reduced fraction in (0, 1], compared with integers. Used for the circuit failure threshold.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of Ratio" data-api="Enaxon\Reqtide\Value\Ratio"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> Ratio {
+    <span class="tk-k">public</span> <span class="tk-k">const</span> MAX_COMPONENT = <span class="tk-n">9007199254740991</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> PositiveInt <span class="tk-v">$numerator</span>,
+        <span class="tk-k">public</span> PositiveInt <span class="tk-v">$denominator</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> of(<span class="tk-k">int</span> <span class="tk-v">$numerator</span>, <span class="tk-k">int</span> <span class="tk-v">$denominator</span>): <span class="tk-k">self</span>;
+}</code></pre>
+<h2 id="run">Run an operation<a class="anchor" href="#run" aria-label="Link to this section">#</a></h2>
+<p>Per-operation objects. A context carries the total deadline and your statement about repeating the call; your callable receives an <code>AttemptContext</code>.</p>
+<h3 id="execution-executioncontext"><code>ExecutionContext</code> <small>Enaxon\Reqtide\Execution</small></h3>
+<p>Immutable facts of one logical operation. Build it with <code>CompiledPipeline::newContext()</code>. Do not share one between operations.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of ExecutionContext" data-api="Enaxon\Reqtide\Execution\ExecutionContext"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> ExecutionContext {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> OperationId <span class="tk-v">$operationId</span>,
+        <span class="tk-k">public</span> PartitionIdentity <span class="tk-v">$partition</span>,
+        <span class="tk-k">public</span> Deadline <span class="tk-v">$deadline</span>,
+        <span class="tk-k">public</span> Cancellation <span class="tk-v">$cancellation</span>,
+        <span class="tk-k">public</span> OperationMetadata <span class="tk-v">$metadata</span>,
+        <span class="tk-k">public</span> ?FallbackOperation <span class="tk-v">$fallback</span>,
+    );
+}</code></pre>
+<h3 id="execution-attemptcontext"><code>AttemptContext</code> <small>Enaxon\Reqtide\Execution</small></h3>
+<p>Passed to your callable on every attempt: operation id, attempt id, the attempt number, the deadline, the cancellation and the attempt timeout.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of AttemptContext" data-api="Enaxon\Reqtide\Execution\AttemptContext"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> AttemptContext {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> OperationId <span class="tk-v">$operationId</span>,
+        <span class="tk-k">public</span> AttemptId <span class="tk-v">$attemptId</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$dispatchedAttemptNumber</span>,
+        <span class="tk-k">public</span> Deadline <span class="tk-v">$deadline</span>,
+        <span class="tk-k">public</span> Cancellation <span class="tk-v">$cancellation</span>,
+        <span class="tk-k">public</span> Duration <span class="tk-v">$attemptTimeout</span>,
+    );
+}</code></pre>
+<h3 id="execution-operationsafety"><code>OperationSafety</code> <small>Enaxon\Reqtide\Execution</small></h3>
+<p>Your statement about repeating a call. <code>unsafe()</code> is the default and forbids retries; the other two allow them.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of OperationSafety" data-api="Enaxon\Reqtide\Execution\OperationSafety"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> OperationSafety {
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> unsafe(): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> replayableRead(ReplaySafetyContract <span class="tk-v">$contract</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> providerIdempotentMutation(
+        ReplaySafetyContract <span class="tk-v">$contract</span>,
+    ): <span class="tk-k">self</span>;
+}</code></pre>
+<dl class="api-methods"><dt><code>unsafe()</code></dt><dd>The default. A pipeline that allows more than one attempt refuses to run.</dd><dt><code>replayableRead()</code></dt><dd>You assert that running the callable again is safe.</dd><dt><code>providerIdempotentMutation()</code></dt><dd>You assert that the provider deduplicates repeated mutations.</dd></dl>
+<h3 id="execution-replaysafetycontract"><code>ReplaySafetyContract</code> <small>Enaxon\Reqtide\Execution</small></h3>
+<p>The written assertion behind <code>OperationSafety</code>. Reqtide never verifies it.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of ReplaySafetyContract" data-api="Enaxon\Reqtide\Execution\ReplaySafetyContract"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> ReplaySafetyContract {
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> forReadOnlyCallable(
+        <span class="tk-k">string</span> <span class="tk-v">$operationName</span>,
+        Duration <span class="tk-v">$validFor</span>,
+        ?Clock <span class="tk-v">$clock</span> = <span class="tk-k">null</span>,
+        ?<span class="tk-k">array</span> <span class="tk-v">$retryableOutcomeCodes</span> = <span class="tk-k">null</span>,
+    ): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$contractReference</span>,
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$identityValue</span>,
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$identityScope</span>,
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$duplicateHandlingContract</span>,
+        <span class="tk-k">public</span> DateTimeImmutable <span class="tk-v">$establishedAt</span>,
+        <span class="tk-k">public</span> DateTimeImmutable <span class="tk-v">$validUntil</span>,
+        <span class="tk-k">public</span> Duration <span class="tk-v">$retention</span>,
+        <span class="tk-k">public</span> ReplayPreparation <span class="tk-v">$preparation</span>,
+        <span class="tk-k">public</span> <span class="tk-k">array</span> <span class="tk-v">$retryableOutcomeCodes</span>,
+    );
+}</code></pre>
+<dl class="api-methods"><dt><code>forReadOnlyCallable()</code></dt><dd>Builds the contract for a repeatable read. Your call is the assertion; it is not checked.</dd></dl>
+<h3 id="execution-operationsafetykind"><code>OperationSafetyKind</code> <small>Enaxon\Reqtide\Execution</small></h3>
+<p>The kind of safety an operation carries.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of OperationSafetyKind" data-api="Enaxon\Reqtide\Execution\OperationSafetyKind"><code class="language-api"><span class="tk-k">enum</span> OperationSafetyKind: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> Unsafe = <span class="tk-s">'unsafe'</span>;
+    <span class="tk-k">case</span> ReplayableRead = <span class="tk-s">'replayable_read'</span>;
+    <span class="tk-k">case</span> ProviderIdempotentMutation = <span class="tk-s">'provider_idempotent_mutation'</span>;
+}</code></pre>
+<h3 id="fallback-fallbackoperation"><code>FallbackOperation</code> <small>Enaxon\Reqtide\Fallback</small></h3>
+<p>A fallback you attach to one operation through <code>newContext()</code>. It receives the original outcome.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of FallbackOperation" data-api="Enaxon\Reqtide\Fallback\FallbackOperation"><code class="language-api"><span class="tk-k">interface</span> FallbackOperation {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> invoke(Outcome <span class="tk-v">$original</span>, ExecutionContext <span class="tk-v">$context</span>): <span class="tk-k">mixed</span>;
+}</code></pre>
+<h3 id="fallback-fallbackscope"><code>FallbackScope</code> <small>Enaxon\Reqtide\Fallback</small></h3>
+<p>What a fallback may replace. The default replaces business outcomes only.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of FallbackScope" data-api="Enaxon\Reqtide\Fallback\FallbackScope"><code class="language-api"><span class="tk-k">enum</span> FallbackScope: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> BusinessOutcomesOnly = <span class="tk-s">'business_outcomes_only'</span>;
+    <span class="tk-k">case</span> IncludeAdmissionRefusals = <span class="tk-s">'include_admission_refusals'</span>;
+}</code></pre>
+<h2 id="classify">Decide what an outcome means<a class="anchor" href="#classify" aria-label="Link to this section">#</a></h2>
+<p>Policies act on the classification of each attempt, and you decide what a failure is. <code>ExceptionClassifier</code> is the ready-made classifier; implement <code>OutcomeClassifier</code> for anything it cannot express.</p>
+<h3 id="outcome-exceptionclassifier"><code>ExceptionClassifier</code> <small>Enaxon\Reqtide\Outcome</small></h3>
+<p>Classifier driven by lists of exception classes. Conservative on purpose: an exception nobody listed is not retried and not replaced by a fallback, but it counts as a circuit failure. Matching is <code>instanceof</code>. Every method returns a new instance.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of ExceptionClassifier" data-api="Enaxon\Reqtide\Outcome\ExceptionClassifier"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> ExceptionClassifier <span class="tk-k">implements</span> OutcomeClassifier {
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> create(): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> retryOn(<span class="tk-k">string</span> ...<span class="tk-v">$exceptionClasses</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> countAsCircuitFailure(<span class="tk-k">string</span> ...<span class="tk-v">$exceptionClasses</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> ignoreForCircuit(<span class="tk-k">string</span> ...<span class="tk-v">$exceptionClasses</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> fallbackOn(<span class="tk-k">string</span> ...<span class="tk-v">$exceptionClasses</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> retryAfterFrom(<span class="tk-k">callable</span> <span class="tk-v">$extractor</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> unacceptableValuesWhen(<span class="tk-k">callable</span> <span class="tk-v">$predicate</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> classify(
+        Outcome <span class="tk-v">$outcome</span>,
+        OperationMetadata <span class="tk-v">$metadata</span>,
+    ): OutcomeClassification;
+}</code></pre>
+<dl class="api-methods"><dt><code>create()</code></dt><dd>An empty classifier.</dd><dt><code>retryOn()</code></dt><dd>Exception classes that may be retried.</dd><dt><code>countAsCircuitFailure()</code></dt><dd>Narrows circuit failures to these classes (and retryable ones). Without it every exception that is not ignored counts.</dd><dt><code>ignoreForCircuit()</code></dt><dd>Exception classes that say nothing about the dependency, such as validation errors. Ignore wins over a failure list.</dd><dt><code>fallbackOn()</code></dt><dd>Exception classes a fallback may replace.</dd><dt><code>retryAfterFrom()</code></dt><dd>Extracts a server-stated wait (a <code>Duration</code> or <code>null</code>) from an exception.</dd><dt><code>unacceptableValuesWhen()</code></dt><dd>Marks a returned value as a failure: a circuit failure, never retried, never replaced.</dd><dt><code>classify()</code></dt><dd>The <code>OutcomeClassifier</code> contract.</dd></dl>
+<h3 id="outcome-outcomeclassifier"><code>OutcomeClassifier</code> <small>Enaxon\Reqtide\Outcome</small></h3>
+<p>The contract a classifier implements. Write your own when results must be retried or classified in ways the exception lists cannot say.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of OutcomeClassifier" data-api="Enaxon\Reqtide\Outcome\OutcomeClassifier"><code class="language-api"><span class="tk-k">interface</span> OutcomeClassifier {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> classify(
+        Outcome <span class="tk-v">$outcome</span>,
+        OperationMetadata <span class="tk-v">$metadata</span>,
+    ): OutcomeClassification;
+}</code></pre>
+<h3 id="outcome-outcome"><code>Outcome</code> <small>Enaxon\Reqtide\Outcome</small></h3>
+<p>What one attempt produced: a returned value or a thrown exception.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of Outcome" data-api="Enaxon\Reqtide\Outcome\Outcome"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> Outcome {
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> fromValue(
+        <span class="tk-k">mixed</span> <span class="tk-v">$value</span>,
+        BoundedMetadata <span class="tk-v">$metadata</span>,
+    ): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> fromException(
+        Throwable <span class="tk-v">$exception</span>,
+        BoundedMetadata <span class="tk-v">$metadata</span>,
+    ): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> value(): <span class="tk-k">mixed</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> exception(): Throwable;
+}</code></pre>
+<h3 id="outcome-outcomeclassification"><code>OutcomeClassification</code> <small>Enaxon\Reqtide\Outcome</small></h3>
+<p>The classifier's verdict on one outcome: retry eligibility, circuit verdict, fallback eligibility, acceptability, a reason code and an optional wait lower bound.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of OutcomeClassification" data-api="Enaxon\Reqtide\Outcome\OutcomeClassification"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> OutcomeClassification {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> RetryEligibility <span class="tk-v">$retry</span>,
+        <span class="tk-k">public</span> CircuitVerdict <span class="tk-v">$circuit</span>,
+        <span class="tk-k">public</span> FallbackEligibility <span class="tk-v">$fallback</span>,
+        <span class="tk-k">public</span> Acceptability <span class="tk-v">$acceptability</span>,
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$reasonCode</span>,
+        <span class="tk-k">public</span> ?Duration <span class="tk-v">$retryAfterLowerBound</span>,
+    );
+}</code></pre>
+<h3 id="outcome-outcomekind"><code>OutcomeKind</code> <small>Enaxon\Reqtide\Outcome</small></h3>
+<p>Whether an outcome is a value or an exception.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of OutcomeKind" data-api="Enaxon\Reqtide\Outcome\OutcomeKind"><code class="language-api"><span class="tk-k">enum</span> OutcomeKind: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> Value = <span class="tk-s">'value'</span>;
+    <span class="tk-k">case</span> Exception = <span class="tk-s">'exception'</span>;
+}</code></pre>
+<h3 id="outcome-retryeligibility"><code>RetryEligibility</code> <small>Enaxon\Reqtide\Outcome</small></h3>
+<p>Whether an outcome may be retried.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RetryEligibility" data-api="Enaxon\Reqtide\Outcome\RetryEligibility"><code class="language-api"><span class="tk-k">enum</span> RetryEligibility: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> Eligible = <span class="tk-s">'eligible'</span>;
+    <span class="tk-k">case</span> Ineligible = <span class="tk-s">'ineligible'</span>;
+}</code></pre>
+<h3 id="outcome-fallbackeligibility"><code>FallbackEligibility</code> <small>Enaxon\Reqtide\Outcome</small></h3>
+<p>Whether a fallback may replace an outcome.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of FallbackEligibility" data-api="Enaxon\Reqtide\Outcome\FallbackEligibility"><code class="language-api"><span class="tk-k">enum</span> FallbackEligibility: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> Eligible = <span class="tk-s">'eligible'</span>;
+    <span class="tk-k">case</span> Ineligible = <span class="tk-s">'ineligible'</span>;
+}</code></pre>
+<h3 id="outcome-circuitverdict"><code>CircuitVerdict</code> <small>Enaxon\Reqtide\Outcome</small></h3>
+<p>How an outcome counts for the circuit breaker. Neutral outcomes neither open nor heal it.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of CircuitVerdict" data-api="Enaxon\Reqtide\Outcome\CircuitVerdict"><code class="language-api"><span class="tk-k">enum</span> CircuitVerdict: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> Success = <span class="tk-s">'success'</span>;
+    <span class="tk-k">case</span> Failure = <span class="tk-s">'failure'</span>;
+    <span class="tk-k">case</span> Neutral = <span class="tk-s">'neutral'</span>;
+}</code></pre>
+<h3 id="outcome-acceptability"><code>Acceptability</code> <small>Enaxon\Reqtide\Outcome</small></h3>
+<p>Whether an outcome is acceptable to the caller.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of Acceptability" data-api="Enaxon\Reqtide\Outcome\Acceptability"><code class="language-api"><span class="tk-k">enum</span> Acceptability: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> Acceptable = <span class="tk-s">'acceptable'</span>;
+    <span class="tk-k">case</span> Unacceptable = <span class="tk-s">'unacceptable'</span>;
+}</code></pre>
+<h2 id="options">Policy options<a class="anchor" href="#options" aria-label="Link to this section">#</a></h2>
+<p>Enums and option objects the builder takes or returns. You normally reach them through <code>PipelineBuilder</code> and rarely construct them yourself.</p>
+<h3 id="policy-backoffmode"><code>BackoffMode</code> <small>Enaxon\Reqtide\Policy</small></h3>
+<p>Retry delay growth: constant or exponential.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of BackoffMode" data-api="Enaxon\Reqtide\Policy\BackoffMode"><code class="language-api"><span class="tk-k">enum</span> BackoffMode: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> Constant = <span class="tk-s">'constant'</span>;
+    <span class="tk-k">case</span> Exponential = <span class="tk-s">'exponential'</span>;
+}</code></pre>
+<h3 id="policy-jittermode"><code>JitterMode</code> <small>Enaxon\Reqtide\Policy</small></h3>
+<p><code>Full</code> draws each delay uniformly from zero to the computed delay.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of JitterMode" data-api="Enaxon\Reqtide\Policy\JitterMode"><code class="language-api"><span class="tk-k">enum</span> JitterMode: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> None = <span class="tk-s">'none'</span>;
+    <span class="tk-k">case</span> Full = <span class="tk-s">'full'</span>;
+}</code></pre>
+<h3 id="policy-attempttimeoutrequirement"><code>AttemptTimeoutRequirement</code> <small>Enaxon\Reqtide\Policy</small></h3>
+<p><code>Cooperative</code> is the honest choice for the synchronous runtime: your code must respect the time. <code>TransportEnforced</code> needs a runtime that declares it.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of AttemptTimeoutRequirement" data-api="Enaxon\Reqtide\Policy\AttemptTimeoutRequirement"><code class="language-api"><span class="tk-k">enum</span> AttemptTimeoutRequirement: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> Cooperative = <span class="tk-s">'cooperative'</span>;
+    <span class="tk-k">case</span> TransportEnforced = <span class="tk-s">'transport_enforced'</span>;
+}</code></pre>
+<h3 id="policy-fixedwindowanchor"><code>FixedWindowAnchor</code> <small>Enaxon\Reqtide\Policy</small></h3>
+<p>Where fixed windows start: on multiples of the window length, or at the first hit.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of FixedWindowAnchor" data-api="Enaxon\Reqtide\Policy\FixedWindowAnchor"><code class="language-api"><span class="tk-k">enum</span> FixedWindowAnchor: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> Aligned = <span class="tk-s">'aligned'</span>;
+    <span class="tk-k">case</span> FirstHit = <span class="tk-s">'first_hit'</span>;
+}</code></pre>
+<h3 id="policy-tokenbucketoptions"><code>TokenBucketOptions</code> <small>Enaxon\Reqtide\Policy</small></h3>
+<p>Token-bucket settings returned by <code>PipelineBuilder::tokenBucket()</code>.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of TokenBucketOptions" data-api="Enaxon\Reqtide\Policy\TokenBucketOptions"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> TokenBucketOptions <span class="tk-k">implements</span> RateAlgorithmOptions {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> PositiveInt <span class="tk-v">$capacityUnits</span>,
+        <span class="tk-k">public</span> PositiveInt <span class="tk-v">$refillUnits</span>,
+        <span class="tk-k">public</span> Duration <span class="tk-v">$refillInterval</span>,
+    );
+}</code></pre>
+<h3 id="policy-fixedwindowoptions"><code>FixedWindowOptions</code> <small>Enaxon\Reqtide\Policy</small></h3>
+<p>Fixed-window settings returned by <code>PipelineBuilder::fixedWindow()</code>.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of FixedWindowOptions" data-api="Enaxon\Reqtide\Policy\FixedWindowOptions"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> FixedWindowOptions <span class="tk-k">implements</span> RateAlgorithmOptions {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> PositiveInt <span class="tk-v">$capacityUnits</span>,
+        <span class="tk-k">public</span> Duration <span class="tk-v">$window</span>,
+        <span class="tk-k">public</span> FixedWindowAnchor <span class="tk-v">$anchor</span>,
+    );
+}</code></pre>
+<h3 id="policy-slidingcounteroptions"><code>SlidingCounterOptions</code> <small>Enaxon\Reqtide\Policy</small></h3>
+<p>Sliding-counter settings returned by <code>PipelineBuilder::slidingWindow()</code>.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of SlidingCounterOptions" data-api="Enaxon\Reqtide\Policy\SlidingCounterOptions"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> SlidingCounterOptions <span class="tk-k">implements</span> RateAlgorithmOptions {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> PositiveInt <span class="tk-v">$capacityUnits</span>,
+        <span class="tk-k">public</span> Duration <span class="tk-v">$window</span>,
+    );
+}</code></pre>
+<h3 id="policy-countcircuitwindow"><code>CountCircuitWindow</code> <small>Enaxon\Reqtide\Policy</small></h3>
+<p>Circuit window over the last N completed calls.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of CountCircuitWindow" data-api="Enaxon\Reqtide\Policy\CountCircuitWindow"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> CountCircuitWindow <span class="tk-k">implements</span> CircuitWindowOptions {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(<span class="tk-k">public</span> PositiveInt <span class="tk-v">$completedSamples</span>);
+}</code></pre>
+<h3 id="policy-timecircuitwindow"><code>TimeCircuitWindow</code> <small>Enaxon\Reqtide\Policy</small></h3>
+<p>Circuit window over a duration, kept in buckets.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of TimeCircuitWindow" data-api="Enaxon\Reqtide\Policy\TimeCircuitWindow"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> TimeCircuitWindow <span class="tk-k">implements</span> CircuitWindowOptions {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> Duration <span class="tk-v">$window</span>,
+        <span class="tk-k">public</span> Duration <span class="tk-v">$bucketGranularity</span>,
+    );
+}</code></pre>
+<h2 id="results">Results of an operation<a class="anchor" href="#results" aria-label="Link to this section">#</a></h2>
+<p><code>execute()</code> returns your value or throws. <code>executeDetailed()</code> returns the same facts as data in an <code>ExecutionCompletion</code>.</p>
+<h3 id="completion-executioncompletion"><code>ExecutionCompletion</code> <small>Enaxon\Reqtide\Completion</small></h3>
+<p>Disposition, terminal outcome, per-attempt records, bounded diagnostics and a summary of counts.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of ExecutionCompletion" data-api="Enaxon\Reqtide\Completion\ExecutionCompletion"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> ExecutionCompletion {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> CompletionDisposition <span class="tk-v">$disposition</span>,
+        <span class="tk-k">public</span> ?Outcome <span class="tk-v">$terminalOutcome</span>,
+        <span class="tk-k">public</span> ?Outcome <span class="tk-v">$fallbackOutcome</span>,
+        <span class="tk-k">public</span> ?ReqtideException <span class="tk-v">$policyCause</span>,
+        <span class="tk-k">public</span> ?ClassificationFailedException <span class="tk-v">$classifierCause</span>,
+        <span class="tk-k">public</span> <span class="tk-k">array</span> <span class="tk-v">$attempts</span>,
+        <span class="tk-k">public</span> <span class="tk-k">array</span> <span class="tk-v">$diagnostics</span>,
+        <span class="tk-k">public</span> ExecutionSummary <span class="tk-v">$summary</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> problem(): ?Problem;
+}</code></pre>
+<dl class="api-methods"><dt><code>problem()</code></dt><dd>The redacted <code>Problem</code> for this completion, or <code>null</code> when there is nothing for Reqtide to report.</dd></dl>
+<h3 id="completion-completiondisposition"><code>CompletionDisposition</code> <small>Enaxon\Reqtide\Completion</small></h3>
+<p>How an operation ended.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of CompletionDisposition" data-api="Enaxon\Reqtide\Completion\CompletionDisposition"><code class="language-api"><span class="tk-k">enum</span> CompletionDisposition: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> Succeeded = <span class="tk-s">'succeeded'</span>;
+    <span class="tk-k">case</span> Failed = <span class="tk-s">'failed'</span>;
+    <span class="tk-k">case</span> Rejected = <span class="tk-s">'rejected'</span>;
+    <span class="tk-k">case</span> Deferred = <span class="tk-s">'deferred'</span>;
+    <span class="tk-k">case</span> Cancelled = <span class="tk-s">'cancelled'</span>;
+    <span class="tk-k">case</span> DeadlineExceeded = <span class="tk-s">'deadline_exceeded'</span>;
+    <span class="tk-k">case</span> FallbackSucceeded = <span class="tk-s">'fallback_succeeded'</span>;
+    <span class="tk-k">case</span> FallbackFailed = <span class="tk-s">'fallback_failed'</span>;
+}</code></pre>
+<h3 id="completion-executionsummary"><code>ExecutionSummary</code> <small>Enaxon\Reqtide\Completion</small></h3>
+<p>Counts for one operation: dispatches, retries, outcomes, fallbacks, elapsed time and whether accounting is complete.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of ExecutionSummary" data-api="Enaxon\Reqtide\Completion\ExecutionSummary"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> ExecutionSummary {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> OperationId <span class="tk-v">$operationId</span>,
+        <span class="tk-k">public</span> ProfileVersion <span class="tk-v">$profileVersion</span>,
+        <span class="tk-k">public</span> CompletionDisposition <span class="tk-v">$disposition</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$dispatched</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$admittedNotDispatched</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$retries</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$successfulAttempts</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$failedAttempts</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$neutralAttempts</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$actualValues</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$actualExceptions</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$fallbackExecutions</span>,
+        <span class="tk-k">public</span> <span class="tk-k">bool</span> <span class="tk-v">$accountingComplete</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$omittedDiagnostics</span>,
+        <span class="tk-k">public</span> ?Duration <span class="tk-v">$elapsed</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$admissionUncertain</span> = <span class="tk-n">0</span>,
+    );
+}</code></pre>
+<h3 id="completion-attemptrecord"><code>AttemptRecord</code> <small>Enaxon\Reqtide\Completion</small></h3>
+<p>One physical attempt: its outcome, classification and circuit verdict.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of AttemptRecord" data-api="Enaxon\Reqtide\Completion\AttemptRecord"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> AttemptRecord {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> AttemptId <span class="tk-v">$attemptId</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$dispatchedAttemptNumber</span>,
+        <span class="tk-k">public</span> ActualAttemptDisposition <span class="tk-v">$disposition</span>,
+        <span class="tk-k">public</span> Outcome <span class="tk-v">$outcome</span>,
+        <span class="tk-k">public</span> ?Duration <span class="tk-v">$elapsed</span>,
+        <span class="tk-k">public</span> SettlementOverride <span class="tk-v">$logicalOverride</span>,
+        <span class="tk-k">public</span> ?OutcomeClassification <span class="tk-v">$classification</span>,
+        <span class="tk-k">public</span> CircuitVerdict <span class="tk-v">$circuitVerdict</span>,
+    );
+}</code></pre>
+<h3 id="completion-diagnostic"><code>Diagnostic</code> <small>Enaxon\Reqtide\Completion</small></h3>
+<p>A bounded note about a stage and reason, such as <code>retry / attempts_exhausted</code>.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of Diagnostic" data-api="Enaxon\Reqtide\Completion\Diagnostic"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> Diagnostic {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$stageCode</span>,
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$reasonCode</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> of(Stage <span class="tk-v">$stage</span>, ReasonCode <span class="tk-v">$reason</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> stage(): ?Stage;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ?ReasonCode;
+}</code></pre>
+<h2 id="errors">Errors and reasons<a class="anchor" href="#errors" aria-label="Link to this section">#</a></h2>
+<p>Your own exceptions come out unwrapped. A Reqtide decision is a typed exception that implements <code>ProblemCarrier</code>. Branch on <code>reason()</code> and <code>problem()</code>, never on message text.</p>
+<h3 id="error-problem"><code>Problem</code> <small>Enaxon\Reqtide\Error</small></h3>
+<p>Immutable, redaction-safe report shaped after RFC 9457 problem details. It is built from code metadata only: no message, URL, header or credential can enter it. Member names and order are API; <code>title</code> and <code>detail</code> wording is not.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of Problem" data-api="Enaxon\Reqtide\Error\Problem"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> Problem {
+    <span class="tk-k">public</span> <span class="tk-k">const</span> TYPE_PREFIX = <span class="tk-s">'tag:enaloo.com,2026:reqtide:problem:'</span>;
+    <span class="tk-k">public</span> ?Stage <span class="tk-v">$stage</span>;
+    <span class="tk-k">public</span> ?<span class="tk-k">string</span> <span class="tk-v">$correlationId</span>;
+    <span class="tk-k">public</span> <span class="tk-k">array</span> <span class="tk-v">$causes</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> ReasonCode <span class="tk-v">$code</span>,
+        ?Stage <span class="tk-v">$stage</span> = <span class="tk-k">null</span>,
+        <span class="tk-k">public</span> ?OperationId <span class="tk-v">$operationId</span> = <span class="tk-k">null</span>,
+        <span class="tk-k">public</span> ?ProfileVersion <span class="tk-v">$profileVersion</span> = <span class="tk-k">null</span>,
+        <span class="tk-k">public</span> ?AttemptId <span class="tk-v">$attemptId</span> = <span class="tk-k">null</span>,
+        ?<span class="tk-k">string</span> <span class="tk-v">$correlationId</span> = <span class="tk-k">null</span>,
+        <span class="tk-k">array</span> <span class="tk-v">$causes</span> = [],
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> withContext(
+        OperationId <span class="tk-v">$operationId</span>,
+        ProfileVersion <span class="tk-v">$profileVersion</span>,
+        ?AttemptId <span class="tk-v">$attemptId</span> = <span class="tk-k">null</span>,
+        ?<span class="tk-k">string</span> <span class="tk-v">$correlationId</span> = <span class="tk-k">null</span>,
+    ): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> type(): <span class="tk-k">string</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> title(): <span class="tk-k">string</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> category(): Category;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> severity(): Severity;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> retryability(): Retryability;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> detail(): <span class="tk-k">string</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> toArray(): <span class="tk-k">array</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> jsonSerialize(): <span class="tk-k">array</span>;
+}</code></pre>
+<h3 id="error-problemcarrier"><code>ProblemCarrier</code> <small>Enaxon\Reqtide\Error</small></h3>
+<p>Implemented by every exception that describes a Reqtide decision.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of ProblemCarrier" data-api="Enaxon\Reqtide\Error\ProblemCarrier"><code class="language-api"><span class="tk-k">interface</span> ProblemCarrier <span class="tk-k">extends</span> ReqtideException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ReasonCode;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> problem(): Problem;
+}</code></pre>
+<h3 id="exception-reqtideexception"><code>ReqtideException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>Marker for every exception raised by Reqtide itself. Your own exceptions are never wrapped in it.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of ReqtideException" data-api="Enaxon\Reqtide\Exception\ReqtideException"><code class="language-api"><span class="tk-k">interface</span> ReqtideException {
+}</code></pre>
+<h3 id="error-reasoncode"><code>ReasonCode</code> <small>Enaxon\Reqtide\Error</small></h3>
+<p>The registry of stable reason codes. Keep a <code>default</code> branch when you <code>match</code> over it: new cases may be added.</p>
+<details><summary>Show the 80 cases</summary><pre tabindex="0" role="group" aria-label="Signatures of ReasonCode" data-api="Enaxon\Reqtide\Error\ReasonCode"><code class="language-api"><span class="tk-k">enum</span> ReasonCode: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> CircuitOpen = <span class="tk-s">'circuit_open'</span>;
+    <span class="tk-k">case</span> CircuitProbeCapacityExhausted = <span class="tk-s">'circuit_probe_capacity_exhausted'</span>;
+    <span class="tk-k">case</span> ConcurrencyCapacityExhausted = <span class="tk-s">'concurrency_capacity_exhausted'</span>;
+    <span class="tk-k">case</span> CooldownActive = <span class="tk-s">'cooldown_active'</span>;
+    <span class="tk-k">case</span> CooldownExceedsDeadline = <span class="tk-s">'cooldown_exceeds_deadline'</span>;
+    <span class="tk-k">case</span> RateAccepted = <span class="tk-s">'rate.accepted'</span>;
+    <span class="tk-k">case</span> RateCostExceedsCapacity = <span class="tk-s">'rate.cost_exceeds_capacity'</span>;
+    <span class="tk-k">case</span> RateExhausted = <span class="tk-s">'rate.exhausted'</span>;
+    <span class="tk-k">case</span> RateWaitUnrepresentable = <span class="tk-s">'rate.wait_unrepresentable'</span>;
+    <span class="tk-k">case</span> AdmissionRejected = <span class="tk-s">'admission_rejected'</span>;
+    <span class="tk-k">case</span> AdmissionDeferred = <span class="tk-s">'admission_deferred'</span>;
+    <span class="tk-k">case</span> AdmissionImpossible = <span class="tk-s">'admission_impossible'</span>;
+    <span class="tk-k">case</span> CircuitThresholdExceeded = <span class="tk-s">'circuit.threshold_exceeded'</span>;
+    <span class="tk-k">case</span> CircuitProbeFailed = <span class="tk-s">'circuit.probe_failed'</span>;
+    <span class="tk-k">case</span> CircuitProbesSucceeded = <span class="tk-s">'circuit.probes_succeeded'</span>;
+    <span class="tk-k">case</span> CircuitOpenElapsed = <span class="tk-s">'circuit.open_elapsed'</span>;
+    <span class="tk-k">case</span> RetryBudgetExhausted = <span class="tk-s">'retry_budget_exhausted'</span>;
+    <span class="tk-k">case</span> RetryBudgetCommitRefused = <span class="tk-s">'retry_budget_commit_refused'</span>;
+    <span class="tk-k">case</span> AttemptsExhausted = <span class="tk-s">'attempts_exhausted'</span>;
+    <span class="tk-k">case</span> OutcomeNotRetryable = <span class="tk-s">'outcome_not_retryable'</span>;
+    <span class="tk-k">case</span> RetryDelayExceedsDeadline = <span class="tk-s">'retry_delay_exceeds_deadline'</span>;
+    <span class="tk-k">case</span> AttemptAllowanceUnavailable = <span class="tk-s">'attempt_allowance_unavailable'</span>;
+    <span class="tk-k">case</span> ReplayContractNotValid = <span class="tk-s">'replay_contract_not_valid'</span>;
+    <span class="tk-k">case</span> ReplayHorizonInadequate = <span class="tk-s">'replay_horizon_inadequate'</span>;
+    <span class="tk-k">case</span> ReplayHorizonSaturated = <span class="tk-s">'replay_horizon_saturated'</span>;
+    <span class="tk-k">case</span> RetryDeadlineReached = <span class="tk-s">'retry_deadline_reached'</span>;
+    <span class="tk-k">case</span> RetryCancelled = <span class="tk-s">'retry_cancelled'</span>;
+    <span class="tk-k">case</span> RetryAfterExceedsMaximumDelay = <span class="tk-s">'retry_after_exceeds_maximum_delay'</span>;
+    <span class="tk-k">case</span> RetryAfterExceedsDeadline = <span class="tk-s">'retry_after_exceeds_deadline'</span>;
+    <span class="tk-k">case</span> DelayFailed = <span class="tk-s">'delay_failed'</span>;
+    <span class="tk-k">case</span> OperationCancelled = <span class="tk-s">'operation_cancelled'</span>;
+    <span class="tk-k">case</span> DeadlineExceeded = <span class="tk-s">'deadline_exceeded'</span>;
+    <span class="tk-k">case</span> StateUnavailable = <span class="tk-s">'unavailable'</span>;
+    <span class="tk-k">case</span> StateCorrupt = <span class="tk-s">'corrupt'</span>;
+    <span class="tk-k">case</span> StateIndeterminate = <span class="tk-s">'indeterminate'</span>;
+    <span class="tk-k">case</span> StateCapacityExceeded = <span class="tk-s">'capacity_exceeded'</span>;
+    <span class="tk-k">case</span> ClockFailure = <span class="tk-s">'clock_failure'</span>;
+    <span class="tk-k">case</span> UnexpectedBackendFailure = <span class="tk-s">'unexpected'</span>;
+    <span class="tk-k">case</span> RuntimeAdapterFailure = <span class="tk-s">'runtime_adapter_failure'</span>;
+    <span class="tk-k">case</span> RateConsumeIndeterminate = <span class="tk-s">'rate_consume_indeterminate'</span>;
+    <span class="tk-k">case</span> CommitNotConfirmed = <span class="tk-s">'commit_not_confirmed'</span>;
+    <span class="tk-k">case</span> ClockUnavailable = <span class="tk-s">'clock_unavailable'</span>;
+    <span class="tk-k">case</span> RetryClockUnavailable = <span class="tk-s">'retry_clock_unavailable'</span>;
+    <span class="tk-k">case</span> FallbackClockUnavailable = <span class="tk-s">'fallback_clock_unavailable'</span>;
+    <span class="tk-k">case</span> TimingUnavailable = <span class="tk-s">'timing_unavailable'</span>;
+    <span class="tk-k">case</span> FallbackTimingUnavailable = <span class="tk-s">'fallback_timing_unavailable'</span>;
+    <span class="tk-k">case</span> ElapsedUnavailable = <span class="tk-s">'elapsed_unavailable'</span>;
+    <span class="tk-k">case</span> CancellationSampleFailed = <span class="tk-s">'cancellation_sample_failed'</span>;
+    <span class="tk-k">case</span> RandomOutOfRange = <span class="tk-s">'random_out_of_range'</span>;
+    <span class="tk-k">case</span> ConcurrencyReleaseFailed = <span class="tk-s">'concurrency_release_failed'</span>;
+    <span class="tk-k">case</span> ConcurrencyReleaseStale = <span class="tk-s">'concurrency_release_stale'</span>;
+    <span class="tk-k">case</span> CircuitAbandonFailed = <span class="tk-s">'circuit_abandon_failed'</span>;
+    <span class="tk-k">case</span> CircuitAbandonStale = <span class="tk-s">'circuit_abandon_stale'</span>;
+    <span class="tk-k">case</span> CircuitRecordFailed = <span class="tk-s">'circuit_record_failed'</span>;
+    <span class="tk-k">case</span> CircuitRecordStale = <span class="tk-s">'circuit_record_stale'</span>;
+    <span class="tk-k">case</span> RetryReservationReleaseFailed = <span class="tk-s">'retry_reservation_release_failed'</span>;
+    <span class="tk-k">case</span> CooldownExtendFailed = <span class="tk-s">'cooldown_extend_failed'</span>;
+    <span class="tk-k">case</span> CooldownExtensionCapped = <span class="tk-s">'cooldown_extension_capped'</span>;
+    <span class="tk-k">case</span> SettlementAccounting = <span class="tk-s">'settlement_accounting'</span>;
+    <span class="tk-k">case</span> CompletionSinkFailed = <span class="tk-s">'completion_sink_failed'</span>;
+    <span class="tk-k">case</span> EventSinkFailed = <span class="tk-s">'event_sink_failed'</span>;
+    <span class="tk-k">case</span> ClassifierFailed = <span class="tk-s">'classifier_failed'</span>;
+    <span class="tk-k">case</span> LateSignalExtractionFailed = <span class="tk-s">'late_signal_extraction_failed'</span>;
+    <span class="tk-k">case</span> FallbackFailed = <span class="tk-s">'fallback_failed'</span>;
+    <span class="tk-k">case</span> DiscardFailed = <span class="tk-s">'discard_failed'</span>;
+    <span class="tk-k">case</span> ValueAccepted = <span class="tk-s">'value_accepted'</span>;
+    <span class="tk-k">case</span> ValueUnacceptable = <span class="tk-s">'value_unacceptable'</span>;
+    <span class="tk-k">case</span> ExceptionRetryable = <span class="tk-s">'exception_retryable'</span>;
+    <span class="tk-k">case</span> ExceptionFailure = <span class="tk-s">'exception_failure'</span>;
+    <span class="tk-k">case</span> ExceptionIgnored = <span class="tk-s">'exception_ignored'</span>;
+    <span class="tk-k">case</span> PreparationFailed = <span class="tk-s">'preparation_failed'</span>;
+    <span class="tk-k">case</span> LifecycleFailure = <span class="tk-s">'lifecycle_failure'</span>;
+    <span class="tk-k">case</span> UnexpectedFailure = <span class="tk-s">'unexpected_failure'</span>;
+    <span class="tk-k">case</span> InvalidConfiguration = <span class="tk-s">'invalid_configuration'</span>;
+    <span class="tk-k">case</span> CapabilityMismatch = <span class="tk-s">'capability_mismatch'</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> category(): Category;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> severity(): Severity;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> retryability(): Retryability;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> stage(): ?Stage;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> title(): <span class="tk-k">string</span>;
+}</code></pre></details>
+<h3 id="error-retryability"><code>Retryability</code> <small>Enaxon\Reqtide\Error</small></h3>
+<p>What a caller should do with a decision: wait, retry, fix the setup or reconcile.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of Retryability" data-api="Enaxon\Reqtide\Error\Retryability"><code class="language-api"><span class="tk-k">enum</span> Retryability: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> <span class="tk-k">Never</span> = <span class="tk-s">'never'</span>;
+    <span class="tk-k">case</span> AfterWait = <span class="tk-s">'after_wait'</span>;
+    <span class="tk-k">case</span> Transient = <span class="tk-s">'transient'</span>;
+    <span class="tk-k">case</span> Unknown = <span class="tk-s">'unknown'</span>;
+}</code></pre>
+<h3 id="error-category"><code>Category</code> <small>Enaxon\Reqtide\Error</small></h3>
+<p>The kind of decision a code belongs to.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of Category" data-api="Enaxon\Reqtide\Error\Category"><code class="language-api"><span class="tk-k">enum</span> Category: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> Policy = <span class="tk-s">'policy'</span>;
+    <span class="tk-k">case</span> Infrastructure = <span class="tk-s">'infrastructure'</span>;
+    <span class="tk-k">case</span> Configuration = <span class="tk-s">'configuration'</span>;
+    <span class="tk-k">case</span> Classification = <span class="tk-s">'classification'</span>;
+    <span class="tk-k">case</span> Fallback = <span class="tk-s">'fallback'</span>;
+    <span class="tk-k">case</span> Admission = <span class="tk-s">'admission'</span>;
+    <span class="tk-k">case</span> Retry = <span class="tk-s">'retry'</span>;
+    <span class="tk-k">case</span> Accounting = <span class="tk-s">'accounting'</span>;
+    <span class="tk-k">case</span> Preparation = <span class="tk-s">'preparation'</span>;
+}</code></pre>
+<h3 id="error-severity"><code>Severity</code> <small>Enaxon\Reqtide\Error</small></h3>
+<p>Advisory severity, using PSR-3 level names as plain strings.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of Severity" data-api="Enaxon\Reqtide\Error\Severity"><code class="language-api"><span class="tk-k">enum</span> Severity: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> Debug = <span class="tk-s">'debug'</span>;
+    <span class="tk-k">case</span> Info = <span class="tk-s">'info'</span>;
+    <span class="tk-k">case</span> Notice = <span class="tk-s">'notice'</span>;
+    <span class="tk-k">case</span> Warning = <span class="tk-s">'warning'</span>;
+    <span class="tk-k">case</span> Error = <span class="tk-s">'error'</span>;
+    <span class="tk-k">case</span> Critical = <span class="tk-s">'critical'</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> psr3Level(): <span class="tk-k">string</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> rank(): <span class="tk-k">int</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> isAtLeast(<span class="tk-k">self</span> <span class="tk-v">$threshold</span>): <span class="tk-k">bool</span>;
+}</code></pre>
+<h3 id="error-stage"><code>Stage</code> <small>Enaxon\Reqtide\Error</small></h3>
+<p>The lifecycle stage a diagnostic or problem is reported at. Append-only.</p>
+<details><summary>Show the 15 cases</summary><pre tabindex="0" role="group" aria-label="Signatures of Stage" data-api="Enaxon\Reqtide\Error\Stage"><code class="language-api"><span class="tk-k">enum</span> Stage: <span class="tk-k">string</span> {
+    <span class="tk-k">case</span> Preflight = <span class="tk-s">'preflight'</span>;
+    <span class="tk-k">case</span> Preparation = <span class="tk-s">'preparation'</span>;
+    <span class="tk-k">case</span> RetryBudget = <span class="tk-s">'retry_budget'</span>;
+    <span class="tk-k">case</span> Admission = <span class="tk-s">'admission'</span>;
+    <span class="tk-k">case</span> Barrier = <span class="tk-s">'barrier'</span>;
+    <span class="tk-k">case</span> Dispatch = <span class="tk-s">'dispatch'</span>;
+    <span class="tk-k">case</span> Settlement = <span class="tk-s">'settlement'</span>;
+    <span class="tk-k">case</span> Classification = <span class="tk-s">'classification'</span>;
+    <span class="tk-k">case</span> Finalize = <span class="tk-s">'finalize'</span>;
+    <span class="tk-k">case</span> Cleanup = <span class="tk-s">'cleanup'</span>;
+    <span class="tk-k">case</span> Discard = <span class="tk-s">'discard'</span>;
+    <span class="tk-k">case</span> Retry = <span class="tk-s">'retry'</span>;
+    <span class="tk-k">case</span> Fallback = <span class="tk-s">'fallback'</span>;
+    <span class="tk-k">case</span> Observation = <span class="tk-s">'observation'</span>;
+    <span class="tk-k">case</span> Summary = <span class="tk-s">'summary'</span>;
+}</code></pre></details>
+<h3 id="exception-policyterminationexception"><code>PolicyTerminationException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>Base of the exceptions by which a policy ended the operation.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of PolicyTerminationException" data-api="Enaxon\Reqtide\Exception\PolicyTerminationException"><code class="language-api"><span class="tk-k">abstract</span> <span class="tk-k">class</span> PolicyTerminationException <span class="tk-k">implements</span> ProblemCarrier, ReqtideException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> problem(): Problem;
+}</code></pre>
+<h3 id="exception-admissionrejectedexception"><code>AdmissionRejectedException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>A circuit, bulkhead or rate limit refused the call. Your callable did not run.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of AdmissionRejectedException" data-api="Enaxon\Reqtide\Exception\AdmissionRejectedException"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> AdmissionRejectedException <span class="tk-k">extends</span> PolicyTerminationException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> <span class="tk-k">readonly</span> AdmissionDecision <span class="tk-v">$decision</span>,
+        ?Throwable <span class="tk-v">$previous</span> = <span class="tk-k">null</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ReasonCode;
+}</code></pre>
+<h3 id="exception-admissiondeferredexception"><code>AdmissionDeferredException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>A refusal that carries a positive wait, for example a cooldown or a <code>Retry-After</code> that cannot be honored.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of AdmissionDeferredException" data-api="Enaxon\Reqtide\Exception\AdmissionDeferredException"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> AdmissionDeferredException <span class="tk-k">extends</span> PolicyTerminationException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> <span class="tk-k">readonly</span> AdmissionDecision <span class="tk-v">$decision</span>,
+        ?Throwable <span class="tk-v">$previous</span> = <span class="tk-k">null</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ReasonCode;
+}</code></pre>
+<h3 id="exception-impossibleadmissionexception"><code>ImpossibleAdmissionException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>The request can never be admitted, for example a rate cost above the capacity.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of ImpossibleAdmissionException" data-api="Enaxon\Reqtide\Exception\ImpossibleAdmissionException"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> ImpossibleAdmissionException <span class="tk-k">extends</span> PolicyTerminationException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> <span class="tk-k">readonly</span> AdmissionDecision <span class="tk-v">$decision</span>,
+        ?Throwable <span class="tk-v">$previous</span> = <span class="tk-k">null</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ReasonCode;
+}</code></pre>
+<h3 id="exception-deadlineexceededexception"><code>DeadlineExceededException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>The total deadline passed. A late value is replaced by this.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of DeadlineExceededException" data-api="Enaxon\Reqtide\Exception\DeadlineExceededException"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> DeadlineExceededException <span class="tk-k">extends</span> PolicyTerminationException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ReasonCode;
+}</code></pre>
+<h3 id="exception-operationcancelledexception"><code>OperationCancelledException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>The operation was cancelled through its cancellation.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of OperationCancelledException" data-api="Enaxon\Reqtide\Exception\OperationCancelledException"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> OperationCancelledException <span class="tk-k">extends</span> PolicyTerminationException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ReasonCode;
+}</code></pre>
+<h3 id="exception-fallbackfailedexception"><code>FallbackFailedException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>The fallback itself threw. <code>getPrevious()</code> is the fallback exception.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of FallbackFailedException" data-api="Enaxon\Reqtide\Exception\FallbackFailedException"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> FallbackFailedException <span class="tk-k">implements</span> ProblemCarrier, ReqtideException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> <span class="tk-k">readonly</span> Outcome <span class="tk-v">$originalOutcome</span>,
+        <span class="tk-k">public</span> <span class="tk-k">readonly</span> Throwable <span class="tk-v">$fallbackCause</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ReasonCode;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> problem(): Problem;
+}</code></pre>
+<h3 id="exception-invalidconfigurationexception"><code>InvalidConfigurationException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>A value, option or combination is invalid. Raised before anything is dispatched.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of InvalidConfigurationException" data-api="Enaxon\Reqtide\Exception\InvalidConfigurationException"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> InvalidConfigurationException <span class="tk-k">implements</span> ProblemCarrier, ReqtideException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ReasonCode;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> problem(): Problem;
+}</code></pre>
+<h3 id="exception-capabilitymismatchexception"><code>CapabilityMismatchException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>A configured behavior needs a capability the selected runtime, scheduler or backend does not declare.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of CapabilityMismatchException" data-api="Enaxon\Reqtide\Exception\CapabilityMismatchException"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> CapabilityMismatchException <span class="tk-k">implements</span> ProblemCarrier, ReqtideException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ReasonCode;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> problem(): Problem;
+}</code></pre>
+<h3 id="exception-infrastructureexception"><code>InfrastructureException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>Base of clock and state-backend failures. They are never hidden as success.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of InfrastructureException" data-api="Enaxon\Reqtide\Exception\InfrastructureException"><code class="language-api"><span class="tk-k">abstract</span> <span class="tk-k">class</span> InfrastructureException <span class="tk-k">implements</span> ProblemCarrier, ReqtideException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> problem(): Problem;
+}</code></pre>
+<h3 id="exception-stateunavailableexception"><code>StateUnavailableException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>A state backend could not be reached. The protected call does not run.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of StateUnavailableException" data-api="Enaxon\Reqtide\Exception\StateUnavailableException"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> StateUnavailableException <span class="tk-k">extends</span> InfrastructureException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ReasonCode;
+}</code></pre>
+<h3 id="exception-statecapacityexceededexception"><code>StateCapacityExceededException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>A memory backend reached its ceiling and rejected a new partition.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of StateCapacityExceededException" data-api="Enaxon\Reqtide\Exception\StateCapacityExceededException"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> StateCapacityExceededException <span class="tk-k">extends</span> InfrastructureException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ReasonCode;
+}</code></pre>
+<h3 id="exception-corruptstateexception"><code>CorruptStateException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>A state backend found corrupt state.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of CorruptStateException" data-api="Enaxon\Reqtide\Exception\CorruptStateException"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> CorruptStateException <span class="tk-k">extends</span> InfrastructureException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ReasonCode;
+}</code></pre>
+<h3 id="exception-indeterminatestateexception"><code>IndeterminateStateException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>The result of a state-backend operation is indeterminate.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of IndeterminateStateException" data-api="Enaxon\Reqtide\Exception\IndeterminateStateException"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> IndeterminateStateException <span class="tk-k">extends</span> InfrastructureException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ReasonCode;
+}</code></pre>
+<h3 id="exception-clockfailureexception"><code>ClockFailureException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>A clock could not be read.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of ClockFailureException" data-api="Enaxon\Reqtide\Exception\ClockFailureException"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> ClockFailureException <span class="tk-k">extends</span> InfrastructureException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ReasonCode;
+}</code></pre>
+<h3 id="exception-classificationfailedexception"><code>ClassificationFailedException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>The classifier itself threw.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of ClassificationFailedException" data-api="Enaxon\Reqtide\Exception\ClassificationFailedException"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> ClassificationFailedException <span class="tk-k">implements</span> ProblemCarrier, ReqtideException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> <span class="tk-k">readonly</span> Outcome <span class="tk-v">$actualOutcome</span>,
+        <span class="tk-k">public</span> <span class="tk-k">readonly</span> Throwable <span class="tk-v">$classifierCause</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ReasonCode;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> problem(): Problem;
+}</code></pre>
+<h3 id="exception-preparationfailedexception"><code>PreparationFailedException</code> <small>Enaxon\Reqtide\Exception</small></h3>
+<p>Attempt preparation or replay verification failed. Nothing was dispatched.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of PreparationFailedException" data-api="Enaxon\Reqtide\Exception\PreparationFailedException"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> PreparationFailedException <span class="tk-k">implements</span> ProblemCarrier, ReqtideException {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(<span class="tk-k">public</span> <span class="tk-k">readonly</span> Throwable <span class="tk-v">$preparationCause</span>);
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ReasonCode;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> problem(): Problem;
+}</code></pre>
+<h2 id="events">Events<a class="anchor" href="#events" aria-label="Link to this section">#</a></h2>
+<p>Core emits its own typed events and has no telemetry-library dependency. Pass an <code>EventSink</code> to <code>compileInMemory()</code>. A failing sink never replaces your result.</p>
+<h3 id="telemetry-eventsink"><code>EventSink</code> <small>Enaxon\Reqtide\Telemetry</small></h3>
+<p>Receives every event. Implement it to log or count.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of EventSink" data-api="Enaxon\Reqtide\Telemetry\EventSink"><code class="language-api"><span class="tk-k">interface</span> EventSink {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> emit(Event <span class="tk-v">$event</span>): <span class="tk-k">void</span>;
+}</code></pre>
+<h3 id="telemetry-event"><code>Event</code> <small>Enaxon\Reqtide\Telemetry</small></h3>
+<p>Base contract of all events: each names its operation and profile version. <code>EventSeverity::of()</code> gives an event a severity.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of Event" data-api="Enaxon\Reqtide\Telemetry\Event"><code class="language-api"><span class="tk-k">interface</span> Event {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> operationId(): OperationId;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> profileVersion(): ProfileVersion;
+}</code></pre>
+<h3 id="telemetry-retryscheduled"><code>RetryScheduled</code> <small>Enaxon\Reqtide\Telemetry</small></h3>
+<p>A retry was scheduled after a delay.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RetryScheduled" data-api="Enaxon\Reqtide\Telemetry\RetryScheduled"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> RetryScheduled <span class="tk-k">implements</span> Event {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">private</span> OperationId <span class="tk-v">$operation</span>,
+        <span class="tk-k">private</span> ProfileVersion <span class="tk-v">$profile</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$nextDispatchedAttemptNumber</span>,
+        <span class="tk-k">public</span> Duration <span class="tk-v">$delay</span>,
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$reasonCode</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> operationId(): OperationId;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> profileVersion(): ProfileVersion;
+}</code></pre>
+<h3 id="telemetry-admissionrejected"><code>AdmissionRejected</code> <small>Enaxon\Reqtide\Telemetry</small></h3>
+<p>A policy refused an attempt. <code>policyKind</code> and <code>reasonCode</code> say which.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of AdmissionRejected" data-api="Enaxon\Reqtide\Telemetry\AdmissionRejected"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> AdmissionRejected <span class="tk-k">implements</span> Event {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">private</span> OperationId <span class="tk-v">$operation</span>,
+        <span class="tk-k">private</span> ProfileVersion <span class="tk-v">$profile</span>,
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$policyKind</span>,
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$reasonCode</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> operationId(): OperationId;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> profileVersion(): ProfileVersion;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ?ReasonCode;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> severity(): Severity;
+}</code></pre>
+<h3 id="telemetry-attemptcompleted"><code>AttemptCompleted</code> <small>Enaxon\Reqtide\Telemetry</small></h3>
+<p>An attempt settled, with its circuit verdict.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of AttemptCompleted" data-api="Enaxon\Reqtide\Telemetry\AttemptCompleted"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> AttemptCompleted <span class="tk-k">implements</span> Event {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">private</span> OperationId <span class="tk-v">$operation</span>,
+        <span class="tk-k">private</span> ProfileVersion <span class="tk-v">$profile</span>,
+        <span class="tk-k">public</span> AttemptId <span class="tk-v">$attemptId</span>,
+        <span class="tk-k">public</span> CircuitVerdict <span class="tk-v">$verdict</span>,
+        <span class="tk-k">public</span> ?Duration <span class="tk-v">$elapsed</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> operationId(): OperationId;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> profileVersion(): ProfileVersion;
+}</code></pre>
+<h3 id="telemetry-operationcompleted"><code>OperationCompleted</code> <small>Enaxon\Reqtide\Telemetry</small></h3>
+<p>The operation ended, with its disposition.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of OperationCompleted" data-api="Enaxon\Reqtide\Telemetry\OperationCompleted"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> OperationCompleted <span class="tk-k">implements</span> Event {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">private</span> OperationId <span class="tk-v">$operation</span>,
+        <span class="tk-k">private</span> ProfileVersion <span class="tk-v">$profile</span>,
+        <span class="tk-k">public</span> CompletionDisposition <span class="tk-v">$disposition</span>,
+        <span class="tk-k">public</span> ?Duration <span class="tk-v">$elapsed</span>,
+        <span class="tk-k">public</span> <span class="tk-k">bool</span> <span class="tk-v">$accountingComplete</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> operationId(): OperationId;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> profileVersion(): ProfileVersion;
+}</code></pre>
+<h3 id="telemetry-circuittransitioned"><code>CircuitTransitioned</code> <small>Enaxon\Reqtide\Telemetry</small></h3>
+<p>The circuit changed state.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of CircuitTransitioned" data-api="Enaxon\Reqtide\Telemetry\CircuitTransitioned"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> CircuitTransitioned <span class="tk-k">implements</span> Event {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">private</span> OperationId <span class="tk-v">$operation</span>,
+        <span class="tk-k">private</span> ProfileVersion <span class="tk-v">$profile</span>,
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$fromState</span>,
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$toState</span>,
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$reasonCode</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> operationId(): OperationId;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> profileVersion(): ProfileVersion;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ?ReasonCode;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> severity(): Severity;
+}</code></pre>
+<h3 id="telemetry-backenderrorobserved"><code>BackendErrorObserved</code> <small>Enaxon\Reqtide\Telemetry</small></h3>
+<p>A state backend reported an error.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of BackendErrorObserved" data-api="Enaxon\Reqtide\Telemetry\BackendErrorObserved"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> BackendErrorObserved <span class="tk-k">implements</span> Event {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">private</span> OperationId <span class="tk-v">$operation</span>,
+        <span class="tk-k">private</span> ProfileVersion <span class="tk-v">$profile</span>,
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$backendKind</span>,
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$failureCode</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> operationId(): OperationId;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> profileVersion(): ProfileVersion;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ?ReasonCode;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> severity(): Severity;
+}</code></pre>
+<h3 id="telemetry-accountingdegraded"><code>AccountingDegraded</code> <small>Enaxon\Reqtide\Telemetry</small></h3>
+<p>A bookkeeping step after the call failed or was stale. <code>reasonCode</code> says which.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of AccountingDegraded" data-api="Enaxon\Reqtide\Telemetry\AccountingDegraded"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> AccountingDegraded <span class="tk-k">implements</span> Event {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">private</span> OperationId <span class="tk-v">$operation</span>,
+        <span class="tk-k">private</span> ProfileVersion <span class="tk-v">$profile</span>,
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$reasonCode</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> operationId(): OperationId;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> profileVersion(): ProfileVersion;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reason(): ?ReasonCode;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> severity(): Severity;
+}</code></pre>
+<h3 id="telemetry-nulleventsink"><code>NullEventSink</code> <small>Enaxon\Reqtide\Telemetry</small></h3>
+<p>The default sink: discards every event.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of NullEventSink" data-api="Enaxon\Reqtide\Telemetry\NullEventSink"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> NullEventSink <span class="tk-k">implements</span> EventSink {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> emit(Event <span class="tk-v">$event</span>): <span class="tk-k">void</span>;
+}</code></pre>
+<h3 id="telemetry-eventseverity"><code>EventSeverity</code> <small>Enaxon\Reqtide\Telemetry</small></h3>
+<p>Severity of an event, with PSR-3 level names.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of EventSeverity" data-api="Enaxon\Reqtide\Telemetry\EventSeverity"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> EventSeverity {
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> of(Event <span class="tk-v">$event</span>): Severity;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> ofDisposition(
+        CompletionDisposition <span class="tk-v">$disposition</span>,
+    ): Severity;
+}</code></pre>
+<h2 id="testing">Test helpers<a class="anchor" href="#testing" aria-label="Link to this section">#</a></h2>
+<p>In the <code>Enaxon\Reqtide\Testing</code> namespace, shipped in the same package. For tests only: never call them from production code. See <a href="testing.html">Testing with the virtual clock</a>.</p>
+<h3 id="testing-virtualclock"><code>VirtualClock</code> <small>Enaxon\Reqtide\Testing</small></h3>
+<p>A clock that moves only when you move it. Starts at a fixed date so a test gives the same answer every day.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of VirtualClock" data-api="Enaxon\Reqtide\Testing\VirtualClock"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> VirtualClock <span class="tk-k">implements</span> Clock {
+    <span class="tk-k">public</span> <span class="tk-k">const</span> DEFAULT_WALL_START = <span class="tk-s">'2026-01-01T00:00:00+00:00'</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">int</span> <span class="tk-v">$initialMonotonicNanoseconds</span> = <span class="tk-n">1000000000</span>,
+        ?DateTimeImmutable <span class="tk-v">$initialWall</span> = <span class="tk-k">null</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> startingAt(DateTimeImmutable <span class="tk-v">$wall</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> monotonicNow(): <span class="tk-k">int</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> wallNow(): DateTimeImmutable;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> advance(Duration <span class="tk-v">$duration</span>): <span class="tk-k">void</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> advanceMonotonicOnly(Duration <span class="tk-v">$duration</span>): <span class="tk-k">void</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> setMonotonic(<span class="tk-k">int</span> <span class="tk-v">$nanoseconds</span>): <span class="tk-k">void</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> setWall(DateTimeImmutable <span class="tk-v">$wall</span>): <span class="tk-k">void</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> failNextMonotonicReads(<span class="tk-k">int</span> <span class="tk-v">$count</span> = <span class="tk-n">1</span>): <span class="tk-k">void</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> failNextWallReads(<span class="tk-k">int</span> <span class="tk-v">$count</span> = <span class="tk-n">1</span>): <span class="tk-k">void</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> monotonicReadCount(): <span class="tk-k">int</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> wallReadCount(): <span class="tk-k">int</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> peekMonotonic(): <span class="tk-k">int</span>;
+}</code></pre>
+<h3 id="testing-virtualdelayscheduler"><code>VirtualDelayScheduler</code> <small>Enaxon\Reqtide\Testing</small></h3>
+<p>Advances a <code>VirtualClock</code> instead of sleeping, and records every requested delay.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of VirtualDelayScheduler" data-api="Enaxon\Reqtide\Testing\VirtualDelayScheduler"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> VirtualDelayScheduler <span class="tk-k">implements</span> DelayScheduler {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(<span class="tk-k">private</span> <span class="tk-k">readonly</span> VirtualClock <span class="tk-v">$clock</span>);
+    <span class="tk-k">public</span> <span class="tk-k">function</span> capability(): SchedulingCapability;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> cancelDuringNextDelay(
+        CancellationToken <span class="tk-v">$token</span>,
+        Duration <span class="tk-v">$after</span>,
+    ): <span class="tk-k">void</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> delay(
+        Duration <span class="tk-v">$duration</span>,
+        Deadline <span class="tk-v">$deadline</span>,
+        Cancellation <span class="tk-v">$cancellation</span>,
+    ): DelayDisposition;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> records(): <span class="tk-k">array</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> requestedDelays(): <span class="tk-k">array</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> callCount(): <span class="tk-k">int</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> totalElapsed(): Duration;
+}</code></pre>
+<h3 id="testing-controlledruntimeadapter"><code>ControlledRuntimeAdapter</code> <small>Enaxon\Reqtide\Testing</small></h3>
+<p>A synchronous runtime driven by scripts: return a value, throw, advance the clock or request cancellation per dispatch.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of ControlledRuntimeAdapter" data-api="Enaxon\Reqtide\Testing\ControlledRuntimeAdapter"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> ControlledRuntimeAdapter <span class="tk-k">implements</span> RuntimeAdapter {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">private</span> <span class="tk-k">readonly</span> VirtualClock <span class="tk-v">$clock</span>,
+        <span class="tk-k">private</span> <span class="tk-k">readonly</span> ?DispatchScript <span class="tk-v">$default</span> = <span class="tk-k">null</span>,
+        <span class="tk-k">private</span> <span class="tk-k">readonly</span> ?RuntimeCapabilities <span class="tk-v">$capabilities</span> = <span class="tk-k">null</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> defaultCapabilities(): RuntimeCapabilities;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> enqueue(DispatchScript ...<span class="tk-v">$scripts</span>): <span class="tk-k">void</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> capabilities(): RuntimeCapabilities;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> invoke(
+        PreparedAttempt <span class="tk-v">$operation</span>,
+        AttemptContext <span class="tk-v">$context</span>,
+        AttemptControls <span class="tk-v">$controls</span>,
+    ): RuntimeExecution;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> dispatchCount(): <span class="tk-k">int</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> dispatches(): <span class="tk-k">array</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> attemptContexts(): <span class="tk-k">array</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> pendingScripts(): <span class="tk-k">int</span>;
+}</code></pre>
+<h3 id="testing-dispatchscript"><code>DispatchScript</code> <small>Enaxon\Reqtide\Testing</small></h3>
+<p>One scripted dispatch.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of DispatchScript" data-api="Enaxon\Reqtide\Testing\DispatchScript"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> DispatchScript {
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> returning(<span class="tk-k">mixed</span> <span class="tk-v">$value</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> throwing(Throwable <span class="tk-v">$exception</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> callingOperation(): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> advancing(Duration <span class="tk-v">$duration</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> requestingCancellation(CancellationToken <span class="tk-v">$token</span>): <span class="tk-k">self</span>;
+}</code></pre>
+<h3 id="testing-recordingeventsink"><code>RecordingEventSink</code> <small>Enaxon\Reqtide\Testing</small></h3>
+<p>Stores every event for assertions.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RecordingEventSink" data-api="Enaxon\Reqtide\Testing\RecordingEventSink"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> RecordingEventSink <span class="tk-k">implements</span> EventSink {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> emit(Event <span class="tk-v">$event</span>): <span class="tk-k">void</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> throwOnEmit(Throwable <span class="tk-v">$failure</span>, ?<span class="tk-k">int</span> <span class="tk-v">$times</span> = <span class="tk-k">null</span>): <span class="tk-k">void</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> stopThrowing(): <span class="tk-k">void</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> events(): <span class="tk-k">array</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> ofType(<span class="tk-k">string</span> <span class="tk-v">$class</span>): <span class="tk-k">array</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> count(): <span class="tk-k">int</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> clear(): <span class="tk-k">void</span>;
+}</code></pre>
+<h3 id="testing-seededrandomsource"><code>SeededRandomSource</code> <small>Enaxon\Reqtide\Testing</small></h3>
+<p>Seeded randomness: same seed, same sequence.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of SeededRandomSource" data-api="Enaxon\Reqtide\Testing\SeededRandomSource"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> SeededRandomSource <span class="tk-k">implements</span> RandomSource {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(<span class="tk-k">public</span> <span class="tk-k">readonly</span> <span class="tk-k">int</span> <span class="tk-v">$seed</span>);
+    <span class="tk-k">public</span> <span class="tk-k">function</span> integer(<span class="tk-k">int</span> <span class="tk-v">$minimumInclusive</span>, <span class="tk-k">int</span> <span class="tk-v">$maximumInclusive</span>): <span class="tk-k">int</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> draws(): <span class="tk-k">int</span>;
+}</code></pre>
+<h3 id="testing-scriptedrandomsource"><code>ScriptedRandomSource</code> <small>Enaxon\Reqtide\Testing</small></h3>
+<p>Returns a queued list of integers and fails loudly when it runs out.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of ScriptedRandomSource" data-api="Enaxon\Reqtide\Testing\ScriptedRandomSource"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> ScriptedRandomSource <span class="tk-k">implements</span> RandomSource {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(<span class="tk-k">array</span> <span class="tk-v">$values</span>);
+    <span class="tk-k">public</span> <span class="tk-k">function</span> enqueue(<span class="tk-k">int</span> ...<span class="tk-v">$values</span>): <span class="tk-k">void</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> integer(<span class="tk-k">int</span> <span class="tk-v">$minimumInclusive</span>, <span class="tk-k">int</span> <span class="tk-v">$maximumInclusive</span>): <span class="tk-k">int</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> remaining(): <span class="tk-k">int</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> requests(): <span class="tk-k">array</span>;
+}</code></pre>
+<h2 id="redis-package">Redis package: set up shared state<a class="anchor" href="#redis-package" aria-label="Link to this section">#</a></h2>
+<p>These classes belong to the separate package <code>enaxon/reqtide-redis</code>, namespace <code>Enaxon\Reqtide\Redis</code>. It is not released and not on Packagist. See <a href="redis.html">Shared state with Redis</a>. The host creates the registry and the ACL users. The application only builds the environment.</p>
+<h3 id="redis-redisenvironment"><code>RedisEnvironment</code> <small>Enaxon\Reqtide\Redis</small></h3>
+<p>The shared-state counterpart of <code>InMemoryEnvironment</code>. It builds a <code>RuntimeEnvironment</code> whose policies live in one Redis registry, for exactly the policies the definition configures. Creating it opens no connection.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RedisEnvironment" data-api="Enaxon\Reqtide\Redis\RedisEnvironment"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> RedisEnvironment {
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> <span class="tk-k">for</span>(
+        PipelineDefinition <span class="tk-v">$definition</span>,
+        OutcomeClassifier <span class="tk-v">$classifier</span>,
+        RedisConnectionOptions <span class="tk-v">$connection</span>,
+        RedisRegistry <span class="tk-v">$registry</span>,
+        ?EventSink <span class="tk-v">$events</span> = <span class="tk-k">null</span>,
+    ): RuntimeEnvironment;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> explain(
+        CompiledPipeline <span class="tk-v">$pipeline</span>,
+        RedisConnectionOptions <span class="tk-v">$connection</span>,
+        RedisRegistry <span class="tk-v">$registry</span>,
+    ): PipelineExplanation;
+}</code></pre>
+<dl class="api-methods"><dt><code>for()</code></dt><dd>Returns the environment to pass to <code>PipelineBuilder::compile()</code>. The clock of every decision is the Redis server clock.</dd><dt><code>explain()</code></dt><dd>Adds the facts of the shared state to the usual explanation: state scope, I/O timeout, TLS, registry identity and ceilings. No I/O, and no host, password, prefix or secret in the output.</dd></dl>
+<h3 id="redis-redisregistry"><code>RedisRegistry</code> <small>Enaxon\Reqtide\Redis</small></h3>
+<p>The immutable identity of one registry, the isolation unit of shared state: a key prefix, an identity, two ceilings and a secret of 32 bytes or more. The object creates nothing in Redis.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RedisRegistry" data-api="Enaxon\Reqtide\Redis\RedisRegistry"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> RedisRegistry {
+    <span class="tk-k">public</span> <span class="tk-k">const</span> SCHEMA_VERSION = <span class="tk-n">1</span>;
+    <span class="tk-k">public</span> <span class="tk-k">const</span> DEFAULT_MAX_PARTITIONS = <span class="tk-n">10000</span>;
+    <span class="tk-k">public</span> <span class="tk-k">const</span> DEFAULT_MAX_RECORDS = <span class="tk-n">20000</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$keyPrefix</span>,
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$identity</span>,
+        <span class="tk-k">private</span> <span class="tk-k">string</span> <span class="tk-v">$secret</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$maxPartitions</span> = <span class="tk-k">self</span>::DEFAULT_MAX_PARTITIONS,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$maxRecords</span> = <span class="tk-k">self</span>::DEFAULT_MAX_RECORDS,
+    );
+}</code></pre>
+<h3 id="redis-redisregistryadmin"><code>RedisRegistryAdmin</code> <small>Enaxon\Reqtide\Redis</small></h3>
+<p>The only way to create, check or retire a registry. The host calls it with its administration connection. The application never does.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RedisRegistryAdmin" data-api="Enaxon\Reqtide\Redis\RedisRegistryAdmin"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> RedisRegistryAdmin {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        RedisConnectionOptions <span class="tk-v">$administrativeConnection</span>,
+        <span class="tk-k">private</span> <span class="tk-k">readonly</span> RedisRegistry <span class="tk-v">$registry</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> initialize(): RegistryStatus;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> verify(): RegistryStatus;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> retire(): RegistryStatus;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> purgeRetired(): <span class="tk-k">int</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> inspectServer(): ServerPolicyReport;
+}</code></pre>
+<dl class="api-methods"><dt><code>initialize()</code></dt><dd>Creates the registry, or confirms an identical one. A different identity or different ceilings are refused. Refused on a server older than Redis 7.0 and on a prefix that still holds leftovers of a retired registry.</dd><dt><code>verify()</code></dt><dd>Checks presence, identity, schema and counters. Writes nothing.</dd><dt><code>retire()</code></dt><dd>Deletes the registry metadata. Partition and record keys stay until <code>purgeRetired()</code> removes them.</dd><dt><code>purgeRetired()</code></dt><dd>Removes the keys a retired registry left behind. Refuses to run while the registry exists. Returns the number of keys removed.</dd><dt><code>inspectServer()</code></dt><dd>Reads <code>maxmemory-policy</code> and <code>maxmemory</code>. Needs <code>CONFIG GET</code> and <code>INFO</code>. Refuses a server older than Redis 7.0.</dd></dl>
+<h3 id="redis-redisconnectionoptions"><code>RedisConnectionOptions</code> <small>Enaxon\Reqtide\Redis</small></h3>
+<p>Immutable options for one direct Redis connection. Both timeouts are required. There is no retry option and no way to turn off certificate or host name checks. The password never appears in <code>var_dump</code> or in an exception message.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RedisConnectionOptions" data-api="Enaxon\Reqtide\Redis\RedisConnectionOptions"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> RedisConnectionOptions {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> <span class="tk-k">string</span> <span class="tk-v">$host</span>,
+        <span class="tk-k">public</span> <span class="tk-k">float</span> <span class="tk-v">$connectTimeoutSeconds</span>,
+        <span class="tk-k">public</span> <span class="tk-k">float</span> <span class="tk-v">$readWriteTimeoutSeconds</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$port</span> = <span class="tk-n">6379</span>,
+        <span class="tk-k">public</span> ?<span class="tk-k">string</span> <span class="tk-v">$username</span> = <span class="tk-k">null</span>,
+        <span class="tk-k">private</span> ?<span class="tk-k">string</span> <span class="tk-v">$password</span> = <span class="tk-k">null</span>,
+        <span class="tk-k">public</span> <span class="tk-k">bool</span> <span class="tk-v">$tls</span> = <span class="tk-k">false</span>,
+        <span class="tk-k">public</span> ?<span class="tk-k">string</span> <span class="tk-v">$caFile</span> = <span class="tk-k">null</span>,
+        <span class="tk-k">public</span> ?<span class="tk-k">string</span> <span class="tk-v">$tlsServerName</span> = <span class="tk-k">null</span>,
+    );
+}</code></pre>
+<h3 id="redis-redisacl"><code>RedisAcl</code> <small>Enaxon\Reqtide\Redis</small></h3>
+<p>The Redis ACL rules the library needs, and no more. Print them and pass them to <code>ACL SETUSER</code>.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RedisAcl" data-api="Enaxon\Reqtide\Redis\RedisAcl"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> RedisAcl {
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> execution(RedisRegistry <span class="tk-v">$registry</span>): <span class="tk-k">array</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> administration(RedisRegistry <span class="tk-v">$registry</span>): <span class="tk-k">array</span>;
+}</code></pre>
+<dl class="api-methods"><dt><code>execution()</code></dt><dd>Rules for the application user: the shipped scripts and their commands, only on keys under the registry prefix.</dd><dt><code>administration()</code></dt><dd>The same rules plus <code>SCAN</code>, <code>UNLINK</code>, <code>CONFIG GET</code> and <code>INFO</code>, for the host.</dd></dl>
+<h3 id="redis-registrystatus"><code>RegistryStatus</code> <small>Enaxon\Reqtide\Redis</small></h3>
+<p>What a registry administration call found or did: whether it created the registry, the authority watermark, and the counts against the ceilings.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RegistryStatus" data-api="Enaxon\Reqtide\Redis\RegistryStatus"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> RegistryStatus {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> <span class="tk-k">bool</span> <span class="tk-v">$created</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$watermarkSeconds</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$watermarkMicroseconds</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$partitions</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$records</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$maxPartitions</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$maxRecords</span>,
+    );
+}</code></pre>
+<h3 id="redis-serverpolicyreport"><code>ServerPolicyReport</code> <small>Enaxon\Reqtide\Redis</small></h3>
+<p>What the server does when it runs out of memory. <code>protectsState()</code> is true for <code>noeviction</code> or no memory limit, false for a policy that can delete keys, and null when the policy could not be read.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of ServerPolicyReport" data-api="Enaxon\Reqtide\Redis\ServerPolicyReport"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> ServerPolicyReport {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> ?<span class="tk-k">string</span> <span class="tk-v">$evictionPolicy</span>,
+        <span class="tk-k">public</span> ?<span class="tk-k">int</span> <span class="tk-v">$maxMemoryBytes</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> protectsState(): ?<span class="tk-k">bool</span>;
+}</code></pre>
+<h2 id="redis-operate">Redis package: operate<a class="anchor" href="#redis-operate" aria-label="Link to this section">#</a></h2>
+<p>Run these from a worker, a scheduler or an operator command, with a connection that has the administration rules. The library never calls them for you.</p>
+<h3 id="redis-redisregistrymaintenance"><code>RedisRegistryMaintenance</code> <small>Enaxon\Reqtide\Redis</small></h3>
+<p>Bounded cleanup of a registry. One step looks at no more than 128 candidates and no more than 128 finished records. Nothing runs it for you.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RedisRegistryMaintenance" data-api="Enaxon\Reqtide\Redis\RedisRegistryMaintenance"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> RedisRegistryMaintenance {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        RedisConnectionOptions <span class="tk-v">$connection</span>,
+        <span class="tk-k">private</span> <span class="tk-k">readonly</span> RedisRegistry <span class="tk-v">$registry</span>,
+        ?RedisBridge <span class="tk-v">$bridge</span> = <span class="tk-k">null</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> step(): <span class="tk-k">array</span>;
+}</code></pre>
+<dl class="api-methods"><dt><code>step()</code></dt><dd>Runs one step and returns what it removed and whether <code>more</code> may be found. Call again until <code>more</code> is false.</dd></dl>
+<h3 id="redis-rediscircuitadmin"><code>RedisCircuitAdmin</code> <small>Enaxon\Reqtide\Redis</small></h3>
+<p>Operator actions on circuit breaker partitions. A reset is never called by the library.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RedisCircuitAdmin" data-api="Enaxon\Reqtide\Redis\RedisCircuitAdmin"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> RedisCircuitAdmin {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        RedisConnectionOptions <span class="tk-v">$connection</span>,
+        <span class="tk-k">private</span> <span class="tk-k">readonly</span> RedisRegistry <span class="tk-v">$registry</span>,
+        ?RedisBridge <span class="tk-v">$bridge</span> = <span class="tk-k">null</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reset(PolicyIdentity <span class="tk-v">$identity</span>): ?Generation;
+}</code></pre>
+<dl class="api-methods"><dt><code>reset()</code></dt><dd>Closes the circuit, discards its history and makes every active permit stale. Returns the new generation, or null when the partition does not exist.</dd></dl>
+<h2 id="redis-backends">Redis package: backends<a class="anchor" href="#redis-backends" aria-label="Link to this section">#</a></h2>
+<p>One backend for each policy. <code>RedisEnvironment::for()</code> builds them for you. Create one yourself only to pass it to <code>ReqtideClient::withBackends()</code>. The third constructor argument is a seam for tests: leave it out. Each backend sends one server-side script call for each step, and a command is never sent twice.</p>
+<h3 id="redis-redisratelimitbackend"><code>RedisRateLimitBackend</code> <small>Enaxon\Reqtide\Redis</small></h3>
+<p>Shared token bucket, fixed window and sliding counter.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RedisRateLimitBackend" data-api="Enaxon\Reqtide\Redis\RedisRateLimitBackend"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> RedisRateLimitBackend <span class="tk-k">implements</span> RateLimitBackend, StateBackend {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        RedisConnectionOptions <span class="tk-v">$connection</span>,
+        <span class="tk-k">private</span> <span class="tk-k">readonly</span> RedisRegistry <span class="tk-v">$registry</span>,
+        ?RedisBridge <span class="tk-v">$bridge</span> = <span class="tk-k">null</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> capabilities(): StateBackendCapabilities;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> consume(
+        RateLimitPolicy <span class="tk-v">$policy</span>,
+        PositiveInt <span class="tk-v">$cost</span>,
+        CommandId <span class="tk-v">$command</span>,
+    ): AdmissionDecision;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> inspect(
+        RateLimitPolicy <span class="tk-v">$policy</span>,
+        PositiveInt <span class="tk-v">$requestedCost</span>,
+    ): RateLimitInspection;
+}</code></pre>
+<h3 id="redis-rediscircuitbackend"><code>RedisCircuitBackend</code> <small>Enaxon\Reqtide\Redis</small></h3>
+<p>Shared circuit breaker. Open and half-open state, active permits and count history are never reclaimed or evicted.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RedisCircuitBackend" data-api="Enaxon\Reqtide\Redis\RedisCircuitBackend"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> RedisCircuitBackend <span class="tk-k">implements</span> CircuitBackend, StateBackend {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        RedisConnectionOptions <span class="tk-v">$connection</span>,
+        <span class="tk-k">private</span> <span class="tk-k">readonly</span> RedisRegistry <span class="tk-v">$registry</span>,
+        ?RedisBridge <span class="tk-v">$bridge</span> = <span class="tk-k">null</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> capabilities(): StateBackendCapabilities;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> acquire(
+        CircuitPolicy <span class="tk-v">$policy</span>,
+        AttemptId <span class="tk-v">$attempt</span>,
+        PermitOwnerId <span class="tk-v">$owner</span>,
+        CommandId <span class="tk-v">$command</span>,
+    ): CircuitAdmission;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> record(
+        CircuitPolicy <span class="tk-v">$policy</span>,
+        CircuitPermit <span class="tk-v">$permit</span>,
+        CircuitVerdict <span class="tk-v">$verdict</span>,
+        CommandId <span class="tk-v">$command</span>,
+    ): FinalizationResult;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> abandon(
+        CircuitPolicy <span class="tk-v">$policy</span>,
+        CircuitPermit <span class="tk-v">$permit</span>,
+        CommandId <span class="tk-v">$command</span>,
+    ): FinalizationResult;
+}</code></pre>
+<h3 id="redis-redisconcurrencybackend"><code>RedisConcurrencyBackend</code> <small>Enaxon\Reqtide\Redis</small></h3>
+<p>Shared bulkhead with leases. Active owners are never evicted.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RedisConcurrencyBackend" data-api="Enaxon\Reqtide\Redis\RedisConcurrencyBackend"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> RedisConcurrencyBackend <span class="tk-k">implements</span> ConcurrencyBackend, StateBackend {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        RedisConnectionOptions <span class="tk-v">$connection</span>,
+        <span class="tk-k">private</span> <span class="tk-k">readonly</span> RedisRegistry <span class="tk-v">$registry</span>,
+        ?RedisBridge <span class="tk-v">$bridge</span> = <span class="tk-k">null</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> capabilities(): StateBackendCapabilities;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> acquire(
+        ConcurrencyPolicy <span class="tk-v">$policy</span>,
+        PermitOwnerId <span class="tk-v">$owner</span>,
+        CommandId <span class="tk-v">$command</span>,
+    ): ConcurrencyAdmission;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> release(
+        ConcurrencyPolicy <span class="tk-v">$policy</span>,
+        ConcurrencyPermit <span class="tk-v">$permit</span>,
+        CommandId <span class="tk-v">$command</span>,
+    ): FinalizationResult;
+}</code></pre>
+<h3 id="redis-redisretrybudgetbackend"><code>RedisRetryBudgetBackend</code> <small>Enaxon\Reqtide\Redis</small></h3>
+<p>Shared retry budget. A balance is never reclaimed or evicted.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RedisRetryBudgetBackend" data-api="Enaxon\Reqtide\Redis\RedisRetryBudgetBackend"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> RedisRetryBudgetBackend <span class="tk-k">implements</span> RetryBudgetBackend, StateBackend {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        RedisConnectionOptions <span class="tk-v">$connection</span>,
+        <span class="tk-k">private</span> <span class="tk-k">readonly</span> RedisRegistry <span class="tk-v">$registry</span>,
+        ?RedisBridge <span class="tk-v">$bridge</span> = <span class="tk-k">null</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> capabilities(): StateBackendCapabilities;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> inspect(RetryBudgetPolicy <span class="tk-v">$policy</span>): RetryBudgetInspection;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> reserve(
+        RetryBudgetPolicy <span class="tk-v">$policy</span>,
+        AttemptId <span class="tk-v">$attempt</span>,
+        PermitOwnerId <span class="tk-v">$owner</span>,
+        CommandId <span class="tk-v">$command</span>,
+    ): RetryReservationDecision;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> commit(
+        RetryBudgetPolicy <span class="tk-v">$policy</span>,
+        RetryBudgetReservation <span class="tk-v">$reservation</span>,
+        CommandId <span class="tk-v">$command</span>,
+    ): RetryBudgetFinalizationResult;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> release(
+        RetryBudgetPolicy <span class="tk-v">$policy</span>,
+        RetryBudgetReservation <span class="tk-v">$reservation</span>,
+        CommandId <span class="tk-v">$command</span>,
+    ): RetryBudgetFinalizationResult;
+}</code></pre>
+<h3 id="redis-rediscooldownbackend"><code>RedisCooldownBackend</code> <small>Enaxon\Reqtide\Redis</small></h3>
+<p>Shared cooldown. An extension never shortens an existing pause.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RedisCooldownBackend" data-api="Enaxon\Reqtide\Redis\RedisCooldownBackend"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> RedisCooldownBackend <span class="tk-k">implements</span> CooldownBackend, StateBackend {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        RedisConnectionOptions <span class="tk-v">$connection</span>,
+        <span class="tk-k">private</span> <span class="tk-k">readonly</span> RedisRegistry <span class="tk-v">$registry</span>,
+        ?RedisBridge <span class="tk-v">$bridge</span> = <span class="tk-k">null</span>,
+    );
+    <span class="tk-k">public</span> <span class="tk-k">function</span> capabilities(): StateBackendCapabilities;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> inspect(CooldownPolicy <span class="tk-v">$policy</span>): CooldownDecision;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> extend(
+        CooldownPolicy <span class="tk-v">$policy</span>,
+        Duration <span class="tk-v">$extension</span>,
+        CommandId <span class="tk-v">$command</span>,
+    ): CooldownDecision;
+}</code></pre>
+<h2 id="guzzle-package">Guzzle package<a class="anchor" href="#guzzle-package" aria-label="Link to this section">#</a></h2>
+<p>These classes belong to the separate package <code>enaxon/reqtide-guzzle</code>, namespace <code>Enaxon\Reqtide\Guzzle</code>. It is not released and not on Packagist. See <a href="guzzle.html">Guzzle requests with Reqtide</a>. A 4xx or 5xx status is a response, never an exception.</p>
+<h3 id="guzzle-reqtideclient"><code>ReqtideClient</code> <small>Enaxon\Reqtide\Guzzle</small></h3>
+<p>The entry point. It owns its cURL handlers and runs each operation, with all its attempts, through one compiled pipeline.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of ReqtideClient" data-api="Enaxon\Reqtide\Guzzle\ReqtideClient"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> ReqtideClient {
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> inMemory(
+        PipelineBuilder <span class="tk-v">$pipeline</span>,
+        ?GuzzleConfiguration <span class="tk-v">$configuration</span> = <span class="tk-k">null</span>,
+        ?EventSink <span class="tk-v">$events</span> = <span class="tk-k">null</span>,
+    ): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> withBackends(
+        PipelineBuilder <span class="tk-v">$pipeline</span>,
+        ?RateLimitBackend <span class="tk-v">$rateLimit</span> = <span class="tk-k">null</span>,
+        ?CircuitBackend <span class="tk-v">$circuit</span> = <span class="tk-k">null</span>,
+        ?ConcurrencyBackend <span class="tk-v">$concurrency</span> = <span class="tk-k">null</span>,
+        ?RetryBudgetBackend <span class="tk-v">$retryBudget</span> = <span class="tk-k">null</span>,
+        ?CooldownBackend <span class="tk-v">$cooldown</span> = <span class="tk-k">null</span>,
+        ?GuzzleConfiguration <span class="tk-v">$configuration</span> = <span class="tk-k">null</span>,
+        ?EventSink <span class="tk-v">$events</span> = <span class="tk-k">null</span>,
+    ): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> uri(UriInterface|<span class="tk-k">string</span> <span class="tk-v">$reference</span>): UriInterface;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> send(
+        HttpOperation <span class="tk-v">$operation</span>,
+        Duration <span class="tk-v">$timeout</span>,
+        ?Cancellation <span class="tk-v">$cancellation</span> = <span class="tk-k">null</span>,
+    ): ResponseInterface;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> sendDetailed(
+        HttpOperation <span class="tk-v">$operation</span>,
+        Duration <span class="tk-v">$timeout</span>,
+        ?Cancellation <span class="tk-v">$cancellation</span> = <span class="tk-k">null</span>,
+    ): ExecutionCompletion;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> sendAsync(
+        HttpOperation <span class="tk-v">$operation</span>,
+        Duration <span class="tk-v">$timeout</span>,
+        ?Cancellation <span class="tk-v">$cancellation</span> = <span class="tk-k">null</span>,
+    ): PromiseInterface;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> explain(<span class="tk-k">bool</span> <span class="tk-v">$async</span> = <span class="tk-k">false</span>): PipelineExplanation;
+}</code></pre>
+<dl class="api-methods"><dt><code>inMemory()</code></dt><dd>A client with process-local state.</dd><dt><code>withBackends()</code></dt><dd>A client whose state lives in the backends you pass, for example the Redis backends. Pass a backend for every policy the pipeline configures.</dd><dt><code>uri()</code></dt><dd>Resolves a reference against the base URI (RFC 3986). The base URI is not a security boundary: an absolute reference replaces the host.</dd><dt><code>send()</code></dt><dd>Runs the operation and returns the response, or throws the failure of the operation. The timeout covers every attempt and every wait.</dd><dt><code>sendDetailed()</code></dt><dd>Returns an <code>ExecutionCompletion</code> with the summary of attempts and decisions instead of throwing.</dd><dt><code>sendAsync()</code></dt><dd>Returns a lazy promise. The operation runs when you call <code>wait()</code>, one operation at a time.</dd><dt><code>explain()</code></dt><dd>Describes the compiled pipeline of the synchronous runtime, or of the promise runtime with true. No transfer, no state change.</dd></dl>
+<h3 id="guzzle-guzzleconfiguration"><code>GuzzleConfiguration</code> <small>Enaxon\Reqtide\Guzzle</small></h3>
+<p>The options of the client: the classifier, a short list of Guzzle client defaults and an optional base URI. Any other client default is refused by name.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of GuzzleConfiguration" data-api="Enaxon\Reqtide\Guzzle\GuzzleConfiguration"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> GuzzleConfiguration {
+    <span class="tk-k">public</span> <span class="tk-k">const</span> ALLOWED_CLIENT_DEFAULTS = <span class="tk-k">array</span> (
+  <span class="tk-n">0</span> =&gt; <span class="tk-s">'headers'</span>,
+  <span class="tk-n">1</span> =&gt; <span class="tk-s">'auth'</span>,
+  <span class="tk-n">2</span> =&gt; <span class="tk-s">'proxy'</span>,
+  <span class="tk-n">3</span> =&gt; <span class="tk-s">'verify'</span>,
+  <span class="tk-n">4</span> =&gt; <span class="tk-s">'cert'</span>,
+  <span class="tk-n">5</span> =&gt; <span class="tk-s">'ssl_key'</span>,
+  <span class="tk-n">6</span> =&gt; <span class="tk-s">'crypto_method'</span>,
+  <span class="tk-n">7</span> =&gt; <span class="tk-s">'force_ip_resolve'</span>,
+  <span class="tk-n">8</span> =&gt; <span class="tk-s">'version'</span>,
+  <span class="tk-n">9</span> =&gt; <span class="tk-s">'decode_content'</span>,
+);
+    <span class="tk-k">public</span> HttpOutcomeClassifier <span class="tk-v">$classifier</span>;
+    <span class="tk-k">public</span> ?UriInterface <span class="tk-v">$baseUri</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        ?HttpOutcomeClassifier <span class="tk-v">$classifier</span> = <span class="tk-k">null</span>,
+        <span class="tk-k">public</span> <span class="tk-k">array</span> <span class="tk-v">$clientDefaults</span> = [],
+        UriInterface|<span class="tk-k">string</span>|<span class="tk-k">null</span> <span class="tk-v">$baseUri</span> = <span class="tk-k">null</span>,
+    );
+}</code></pre>
+<h3 id="guzzle-httpoperation"><code>HttpOperation</code> <small>Enaxon\Reqtide\Guzzle</small></h3>
+<p>One logical HTTP operation: an absolute request and your explicit statement of whether and how it may be sent again. Nothing is guessed from the method or a header.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of HttpOperation" data-api="Enaxon\Reqtide\Guzzle\HttpOperation"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> HttpOperation {
+    <span class="tk-k">public</span> ?Closure <span class="tk-v">$bodyFactory</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> read(
+        RequestInterface <span class="tk-v">$request</span>,
+        <span class="tk-k">string</span> <span class="tk-v">$operationGroup</span>,
+        Duration <span class="tk-v">$validFor</span>,
+        <span class="tk-k">array</span> <span class="tk-v">$retryableOutcomeCodes</span> = [],
+        ?Closure <span class="tk-v">$bodyFactory</span> = <span class="tk-k">null</span>,
+        ?Clock <span class="tk-v">$clock</span> = <span class="tk-k">null</span>,
+        ?<span class="tk-k">string</span> <span class="tk-v">$credentialKey</span> = <span class="tk-k">null</span>,
+    ): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> idempotentMutation(
+        RequestInterface <span class="tk-v">$request</span>,
+        <span class="tk-k">string</span> <span class="tk-v">$operationGroup</span>,
+        <span class="tk-k">string</span> <span class="tk-v">$identityValue</span>,
+        <span class="tk-k">string</span> <span class="tk-v">$identityScope</span>,
+        <span class="tk-k">string</span> <span class="tk-v">$duplicateHandling</span>,
+        Duration <span class="tk-v">$validFor</span>,
+        ?Duration <span class="tk-v">$retention</span> = <span class="tk-k">null</span>,
+        ?<span class="tk-k">string</span> <span class="tk-v">$identityHeader</span> = <span class="tk-s">'Idempotency-Key'</span>,
+        <span class="tk-k">array</span> <span class="tk-v">$retryableOutcomeCodes</span> = [],
+        ?Closure <span class="tk-v">$bodyFactory</span> = <span class="tk-k">null</span>,
+        ?Clock <span class="tk-v">$clock</span> = <span class="tk-k">null</span>,
+        ?<span class="tk-k">string</span> <span class="tk-v">$credentialKey</span> = <span class="tk-k">null</span>,
+    ): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> single(
+        RequestInterface <span class="tk-v">$request</span>,
+        <span class="tk-k">string</span> <span class="tk-v">$operationGroup</span>,
+        ?<span class="tk-k">string</span> <span class="tk-v">$credentialKey</span> = <span class="tk-k">null</span>,
+    ): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> metadata(): OperationMetadata;
+}</code></pre>
+<dl class="api-methods"><dt><code>read()</code></dt><dd>For GET and HEAD. You state that repeating the request has no side effect, for how long, and which outcomes may be retried.</dd><dt><code>idempotentMutation()</code></dt><dd>For POST, PUT, PATCH or DELETE that the server deduplicates by an identity. The same body and the same identity are sent on every attempt, and the identity is checked before each one.</dd><dt><code>single()</code></dt><dd>Sent once, never repeated. Core refuses it in a pipeline that retries more than once.</dd><dt><code>metadata()</code></dt><dd>The bounded facts passed to the pipeline: the safety statement and the descriptor attributes.</dd></dl>
+<h3 id="guzzle-httpoutcomeclassifier"><code>HttpOutcomeClassifier</code> <small>Enaxon\Reqtide\Guzzle</small></h3>
+<p>Decides which statuses and cURL errors are retried, count against a circuit, may fall back or set a cooldown. Every method returns a new instance.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of HttpOutcomeClassifier" data-api="Enaxon\Reqtide\Guzzle\HttpOutcomeClassifier"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> HttpOutcomeClassifier <span class="tk-k">implements</span> OutcomeClassifier {
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> starter(?Clock <span class="tk-v">$clock</span> = <span class="tk-k">null</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> empty(?Clock <span class="tk-v">$clock</span> = <span class="tk-k">null</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> withRetryableStatuses(<span class="tk-k">int</span> ...<span class="tk-v">$statuses</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> withCircuitFailureStatuses(<span class="tk-k">int</span> ...<span class="tk-v">$statuses</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> withCircuitNeutralStatuses(<span class="tk-k">int</span> ...<span class="tk-v">$statuses</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> withFallbackStatuses(<span class="tk-k">int</span> ...<span class="tk-v">$statuses</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> withRetryAfterStatuses(<span class="tk-k">int</span> ...<span class="tk-v">$statuses</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> withRetryableTransportErrnos(<span class="tk-k">int</span> ...<span class="tk-v">$errnos</span>): <span class="tk-k">self</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> retryableOutcomeCodes(): <span class="tk-k">array</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> classify(
+        Outcome <span class="tk-v">$outcome</span>,
+        OperationMetadata <span class="tk-v">$metadata</span>,
+    ): OutcomeClassification;
+}</code></pre>
+<dl class="api-methods"><dt><code>starter()</code></dt><dd>A documented starting set. It is not a recommendation for every API.</dd><dt><code>empty()</code></dt><dd>Retries and falls back on nothing and reads no <code>Retry-After</code>.</dd><dt><code>retryableOutcomeCodes()</code></dt><dd>The reason codes that can be retried. Pass them to <code>read()</code> and <code>idempotentMutation()</code>. An empty list never retries.</dd></dl>
+<h3 id="guzzle-retryafter"><code>RetryAfter</code> <small>Enaxon\Reqtide\Guzzle</small></h3>
+<p>A strict reader of <code>Retry-After</code>: seconds or an HTTP date. A value that cannot be read gives no wait.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RetryAfter" data-api="Enaxon\Reqtide\Guzzle\RetryAfter"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">class</span> RetryAfter {
+    <span class="tk-k">public</span> <span class="tk-k">const</span> MAX_SECONDS = <span class="tk-n">9007199254</span>;
+    <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> read(
+        <span class="tk-k">array</span> <span class="tk-v">$lines</span>,
+        DateTimeImmutable <span class="tk-v">$now</span>,
+    ): RetryAfterReading;
+}</code></pre>
+<dl class="api-methods"><dt><code>read()</code></dt><dd>Reads the header lines against the given wall time. The greatest valid delay wins.</dd></dl>
+<h3 id="guzzle-retryafterreading"><code>RetryAfterReading</code> <small>Enaxon\Reqtide\Guzzle</small></h3>
+<p>What the <code>Retry-After</code> lines of one response say. A null delay means no lower bound, never zero.</p>
+<pre tabindex="0" role="group" aria-label="Signatures of RetryAfterReading" data-api="Enaxon\Reqtide\Guzzle\RetryAfterReading"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> RetryAfterReading {
+    <span class="tk-k">public</span> <span class="tk-k">function</span> __construct(
+        <span class="tk-k">public</span> ?Duration <span class="tk-v">$delay</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$validLines</span>,
+        <span class="tk-k">public</span> <span class="tk-k">int</span> <span class="tk-v">$rejectedLines</span>,
+        <span class="tk-k">public</span> <span class="tk-k">bool</span> <span class="tk-v">$outOfRange</span>,
+    );
+}</code></pre>
+<!-- api:end -->
+<div class="reading-footer"><a class="prev" href="guzzle.html"><small>Previous</small>Guzzle requests with Reqtide</a><a class="next" href="limits.html"><small>Next</small>Limits and non-guarantees</a></div>
+</article>
+<nav class="toc" aria-label="On this page"><p>On this page</p><ol><li><a href="#how-to-read-this-page">How to read this page</a></li><li><a href="#the-shortest-path-through-the-surface">The shortest path through the surface</a></li><li><a href="#build">Build a pipeline</a></li><li><a href="#run">Run an operation</a></li><li><a href="#classify">Decide what an outcome means</a></li><li><a href="#options">Policy options</a></li><li><a href="#results">Results of an operation</a></li><li><a href="#errors">Errors and reasons</a></li><li><a href="#events">Events</a></li><li><a href="#testing">Test helpers</a></li><li><a href="#redis-package">Redis package: set up shared state</a></li><li><a href="#redis-operate">Redis package: operate</a></li><li><a href="#redis-backends">Redis package: backends</a></li><li><a href="#guzzle-package">Guzzle package</a></li></ol></nav>
+</div>
+</main>
+<footer class="footer"><div class="shell footer-inner"><p>Reqtide PHP documentation &middot; MIT licensed &middot; Maintained by Ehsan Enaloo</p><div><a href="../guides/limits.html">Limits</a><a href="../guides/faq.html">FAQ</a><a href="https://github.com/ehsanenaloo/reqtide" rel="noopener">Source repository &#8599;</a></div></div></footer>
+</body>
+</html>

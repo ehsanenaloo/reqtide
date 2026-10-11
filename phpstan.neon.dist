@@ -1,0 +1,14 @@
+includes:
+    - phar://phpstan.phar/conf/bleedingEdge.neon
+parameters:
+    level: max
+    paths:
+        - src
+        - tests
+        - packages/redis/src
+        - packages/redis/tests
+        - packages/guzzle/src
+        - packages/guzzle/tests
+    treatPhpDocTypesAsCertain: false
+    checkTooWideReturnTypesInProtectedAndPublicMethods: true
+    checkUninitializedProperties: true

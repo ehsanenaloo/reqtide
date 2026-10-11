@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en" dir="ltr" data-root="../">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rate limiting | Reqtide PHP documentation</title>
+<meta name="description" content="Token bucket, fixed window and an approximate sliding counter, what a charge means when retries are involved, and which refusal you get when the quota is spent.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0f5c99">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Rate limiting | Reqtide PHP documentation">
+<meta property="og:description" content="Token bucket, fixed window and an approximate sliding counter, what a charge means when retries are involved, and which refusal you get when the quota is spent.">
+<meta name="twitter:card" content="summary">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../styles.css">
+<script>try{var t=localStorage.getItem("rt-docs-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+<script defer src="../app.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a><header class="site-header"><div class="shell header-inner"><a class="brand" href="../index.html"><img src="../assets/logo.svg" width="34" height="34" alt=""><span>Reqtide PHP<small>Documentation</small></span></a><nav class="top-nav" aria-label="Primary"><a href="../index.html">Overview</a><a href="../guides/getting-started.html">Getting started</a><a href="../guides/index.html">All guides</a><a href="../guides/api-reference.html">API reference</a><a href="../guides/faq.html">FAQ</a><a href="https://github.com/ehsanenaloo/reqtide" rel="noopener">GitHub &#8599;</a></nav><div class="header-tools"><span data-search-host></span><button type="button" class="icon-button" data-theme-toggle hidden>Theme</button></div></div></header>
+<main id="main">
+<div class="shell page-intro"><p class="breadcrumbs"><a href="../index.html">Home</a> / <a href="index.html">Guides</a> / Protections</p><h1>Rate limiting</h1><p class="lead">After this guide you can pick a rate-limit algorithm, you know that retries are charged like first attempts and that a charge is never refunded, and you can tell a refusal that will pass from one that never will.</p><p class="meta-line">Applies to the unreleased alpha (no version number yet). Checked 2026-10-09 on PHP 8.3 to 8.5.</p></div>
+<div class="shell doc-layout has-toc">
+<aside class="sidebar"><details open><summary>Browse the guides</summary><nav aria-label="Guides"><a href="index.html">All guides</a><p>Get started</p><a href="install.html">Install</a><a href="getting-started.html">Getting started</a><p>Core ideas</p><a href="concepts.html">Concepts</a><p>Protections</p><a href="choosing-policies.html">Choosing policies</a><a href="retry-and-budget.html">Retry and budget</a><a href="rate-limiting.html" aria-current="page">Rate limiting</a><a href="circuit-breaker.html">Circuit breaker</a><a href="bulkhead-and-cooldown.html">Bulkhead and cooldown</a><a href="fallback.html">Fallback</a><p>Errors and tests</p><a href="error-handling.html">Error handling</a><a href="testing.html">Testing with the virtual clock</a><p>Packages</p><a href="redis.html">Shared state with Redis</a><a href="guzzle.html">Guzzle requests with Reqtide</a><p>Reference</p><a href="api-reference.html">API reference</a><a href="limits.html">Limits and non-guarantees</a><p>Trust and help</p><a href="comparison.html">Comparison with other libraries</a><a href="faq.html">FAQ</a></nav></details></aside>
+<article class="prose">
+<aside class="callout warn"><span class="callout-title">Alpha</span><p>The limit protects one PHP process. Ten workers each get the full quota, and under PHP-FPM a pipeline built inside a request starts every request with a full quota. See <a href="limits.html">Limits and non-guarantees</a>.</p></aside>
+<p>Code blocks come from <a href="https://github.com/ehsanenaloo/reqtide/blob/main/examples/09-choosing-policies.php" rel="noopener"><code>examples/09-choosing-policies.php</code></a> and <a href="https://github.com/ehsanenaloo/reqtide/blob/main/examples/11-rate-limit-charges.php" rel="noopener"><code>examples/11-rate-limit-charges.php</code></a>, which <code>tools/run-examples.sh</code> runs and compares with the recorded output. The numbers make behavior visible. They are not recommendations.</p>
+<h2 id="three-algorithms-one-builder-call">Three algorithms, one builder call<a class="anchor" href="#three-algorithms-one-builder-call" aria-label="Link to this section">#</a></h2>
+<p><code>rateLimit(algorithm, cost)</code> takes the algorithm from one of three factory methods. This snippet gives each algorithm room for exactly one call per hour and shows that the second call is refused:</p>
+<details><summary>Shared setup for the snippets on this page</summary><pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-c">/** Every pipeline below starts from the same two required options. */</span>
+<span class="tk-v">$base</span> = <span class="tk-k">static</span> <span class="tk-k">fn</span>(): PipelineBuilder =&gt; PipelineBuilder::profile(<span class="tk-s">'choosing'</span>, <span class="tk-s">'v1'</span>)
+    -&gt;partition(<span class="tk-s">'shop'</span>, <span class="tk-s">'prod'</span>, <span class="tk-s">'catalog-api'</span>)
+    -&gt;attemptTimeout(Duration::seconds(<span class="tk-n">2</span>), AttemptTimeoutRequirement::Cooperative);
+
+<span class="tk-v">$ok</span> = <span class="tk-k">static</span> <span class="tk-k">fn</span>(): <span class="tk-k">string</span> =&gt; <span class="tk-s">'ok'</span>;
+<span class="tk-v">$context</span> = <span class="tk-k">static</span> <span class="tk-k">fn</span>(CompiledPipeline <span class="tk-v">$pipeline</span>): ExecutionContext =&gt; <span class="tk-v">$pipeline</span>-&gt;newContext(Duration::seconds(<span class="tk-n">30</span>));</code></pre></details>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-k">echo</span> <span class="tk-s">"-- 1. Rate limit: three algorithms, same builder call\n"</span>;
+<span class="tk-v">$algorithms</span> = [
+    <span class="tk-s">'token bucket'</span> =&gt; PipelineBuilder::tokenBucket(<span class="tk-n">1</span>, <span class="tk-n">1</span>, Duration::seconds(<span class="tk-n">3600</span>)),
+    <span class="tk-s">'fixed window'</span> =&gt; PipelineBuilder::fixedWindow(<span class="tk-n">1</span>, Duration::seconds(<span class="tk-n">3600</span>), FixedWindowAnchor::FirstHit),
+    <span class="tk-s">'sliding window'</span> =&gt; PipelineBuilder::slidingWindow(<span class="tk-n">1</span>, Duration::seconds(<span class="tk-n">3600</span>)),
+];
+<span class="tk-k">foreach</span> (<span class="tk-v">$algorithms</span> <span class="tk-k">as</span> <span class="tk-v">$name</span> =&gt; <span class="tk-v">$algorithm</span>) {
+    <span class="tk-v">$pipeline</span> = <span class="tk-v">$base</span>()-&gt;rateLimit(<span class="tk-v">$algorithm</span>)-&gt;compileInMemory(ExceptionClassifier::create());
+    <span class="tk-v">$pipeline</span>-&gt;execute(<span class="tk-v">$ok</span>, <span class="tk-v">$context</span>(<span class="tk-v">$pipeline</span>));
+    <span class="tk-k">try</span> {
+        <span class="tk-v">$pipeline</span>-&gt;execute(<span class="tk-v">$ok</span>, <span class="tk-v">$context</span>(<span class="tk-v">$pipeline</span>));
+    } <span class="tk-k">catch</span> (AdmissionRejectedException | AdmissionDeferredException <span class="tk-v">$e</span>) {
+        <span class="tk-k">echo</span> <span class="tk-s">"</span><span class="tk-s">{</span><span class="tk-s">$name</span>}<span class="tk-s">: second call refused with </span><span class="tk-s">{</span><span class="tk-s">$e</span><span class="tk-s">-&gt;</span><span class="tk-s">reason</span>()<span class="tk-s">-&gt;</span><span class="tk-s">value</span>}<span class="tk-s">\n</span><span class="tk-s">"</span>;
+    }
+}</code></pre>
+<pre class="output" tabindex="0" role="group" aria-label="Output"><code class="language-text-output">-- 1. Rate limit: three algorithms, same builder call
+token bucket: second call refused with rate.exhausted
+fixed window: second call refused with rate.exhausted
+sliding window: second call refused with rate.exhausted</code></pre>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Table, scrolls sideways on narrow screens"><table><thead><tr><th scope="col">Algorithm</th><th scope="col">Behavior</th></tr></thead><tbody><tr><td><code>tokenBucket(capacity, refillTokens, interval)</code></td><td>Admits while tokens remain; refills continuously in integer fixed-point; excess is discarded when full.</td></tr><tr><td><code>fixedWindow(capacity, window, anchor)</code></td><td>Counts per window. <code>Aligned</code> windows start at multiples of the window length on the epoch, <code>FirstHit</code> windows start at the first call. Exactly at the window end a new window starts.</td></tr><tr><td><code>slidingWindow(capacity, window)</code></td><td>An approximate sliding counter: it never admits early, but it can admit later than an exact sliding log would.</td></tr></tbody></table></div>
+<p>All three use integer arithmetic, and time is monotonic: a clock that steps backwards never refills a quota.</p>
+<p>Which one to choose depends on what your provider enforces. If it documents a bucket, use a token bucket. If it resets a counter at fixed times, a fixed window with the matching anchor behaves the same way. The sliding counter is the cautious choice when you do not know the provider's rule, at the price of sometimes admitting later than necessary.</p>
+<h2 id="what-a-charge-means">What a charge means<a class="anchor" href="#what-a-charge-means" aria-label="Link to this section">#</a></h2>
+<p>Every dispatch is charged <code>cost</code> units (default 1): the first attempt and each retry alike. A charge is never refunded, even for a call cancelled after admission and before dispatch. Quota used is therefore not the same as requests sent.</p>
+<p>This is the consequence for sizing. A bucket of 3 units with a retry policy of up to 3 attempts is emptied by one operation that retries twice:</p>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-k">echo</span> <span class="tk-s">"-- 1. A retry is charged like a first attempt\n"</span>;
+<span class="tk-c">// A bucket of 3 units that does not refill within this script. The call may make up to 3 attempts.</span>
+<span class="tk-v">$pipeline</span> = PipelineBuilder::profile(<span class="tk-s">'rate-charges'</span>, <span class="tk-s">'v1'</span>)
+    -&gt;partition(<span class="tk-s">'shop'</span>, <span class="tk-s">'prod'</span>, <span class="tk-s">'catalog-api'</span>)
+    -&gt;attemptTimeout(Duration::seconds(<span class="tk-n">2</span>), AttemptTimeoutRequirement::Cooperative)
+    -&gt;retry(<span class="tk-n">3</span>, BackoffMode::Constant, Duration::milliseconds(<span class="tk-n">5</span>), Duration::milliseconds(<span class="tk-n">5</span>), JitterMode::None)
+    -&gt;retryBudget(<span class="tk-n">10</span>, <span class="tk-n">10</span>, Duration::seconds(<span class="tk-n">60</span>), Duration::seconds(<span class="tk-n">10</span>))
+    -&gt;rateLimit(PipelineBuilder::tokenBucket(<span class="tk-n">3</span>, <span class="tk-n">1</span>, Duration::seconds(<span class="tk-n">3600</span>)))
+    -&gt;compileInMemory(ExceptionClassifier::create()-&gt;retryOn(Hiccup::<span class="tk-k">class</span>));
+<span class="tk-v">$safety</span> = <span class="tk-k">static</span> <span class="tk-k">fn</span>(): OperationSafety =&gt; OperationSafety::replayableRead(
+    ReplaySafetyContract::forReadOnlyCallable(<span class="tk-s">'list-products'</span>, Duration::seconds(<span class="tk-n">3600</span>)),
+);
+
+<span class="tk-v">$flaky</span> = <span class="tk-k">static</span> <span class="tk-k">function</span> (AttemptContext <span class="tk-v">$attempt</span>): <span class="tk-k">string</span> {
+    <span class="tk-k">if</span> (<span class="tk-v">$attempt</span>-&gt;dispatchedAttemptNumber &lt; <span class="tk-n">3</span>) {
+        <span class="tk-k">throw</span> <span class="tk-k">new</span> Hiccup(<span class="tk-s">'try again'</span>);
+    }
+
+    <span class="tk-k">return</span> <span class="tk-s">'ok'</span>;
+};
+<span class="tk-k">echo</span> <span class="tk-s">'first operation: '</span>, <span class="tk-v">$pipeline</span>-&gt;execute(<span class="tk-v">$flaky</span>, <span class="tk-v">$pipeline</span>-&gt;newContext(Duration::seconds(<span class="tk-n">30</span>), <span class="tk-v">$safety</span>())), <span class="tk-s">" (3 dispatches)\n"</span>;
+
+<span class="tk-v">$completion</span> = <span class="tk-v">$pipeline</span>-&gt;executeDetailed(<span class="tk-v">$flaky</span>, <span class="tk-v">$pipeline</span>-&gt;newContext(Duration::seconds(<span class="tk-n">30</span>), <span class="tk-v">$safety</span>()));
+<span class="tk-k">echo</span> <span class="tk-s">'second operation: '</span>, <span class="tk-v">$completion</span>-&gt;disposition-&gt;value, <span class="tk-s">', dispatched '</span>, <span class="tk-v">$completion</span>-&gt;summary-&gt;dispatched, <span class="tk-s">', reason '</span>, <span class="tk-v">$completion</span>-&gt;problem()?-&gt;code-&gt;value, <span class="tk-s">"\n"</span>;</code></pre>
+<pre class="output" tabindex="0" role="group" aria-label="Output"><code class="language-text-output">-- 1. A retry is charged like a first attempt
+first operation: ok (3 dispatches)
+second operation: rejected, dispatched 0, reason rate.exhausted</code></pre>
+<p>Size the quota for the expected traffic multiplied by the attempts you allow, not by the number of operations.</p>
+<h2 id="refusals-rejected-deferred-impossible">Refusals: rejected, deferred, impossible<a class="anchor" href="#refusals-rejected-deferred-impossible" aria-label="Link to this section">#</a></h2>
+<p>A refusal reaches you as one of three typed exceptions. Your callable did not run, and the refusal is not counted as a failure of your dependency.</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Table, scrolls sideways on narrow screens"><table><thead><tr><th scope="col">You get</th><th scope="col">Meaning</th></tr></thead><tbody><tr><td><code>AdmissionRejectedException</code></td><td>The quota is spent. A wait may be known, or not, depending on the algorithm.</td></tr><tr><td><code>AdmissionDeferredException</code></td><td>The refusal carries a positive wait.</td></tr><tr><td><code>ImpossibleAdmissionException</code></td><td>The request can never succeed, for example because its cost is above the capacity. Waiting does not help.</td></tr></tbody></table></div>
+<p>The last case is a configuration problem, not a traffic problem:</p>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-k">echo</span> <span class="tk-s">"-- 2. A cost above the capacity can never be admitted\n"</span>;
+<span class="tk-v">$tooCostly</span> = PipelineBuilder::profile(<span class="tk-s">'rate-charges'</span>, <span class="tk-s">'v1'</span>)
+    -&gt;partition(<span class="tk-s">'shop'</span>, <span class="tk-s">'prod'</span>, <span class="tk-s">'catalog-api'</span>)
+    -&gt;attemptTimeout(Duration::seconds(<span class="tk-n">2</span>), AttemptTimeoutRequirement::Cooperative)
+    -&gt;rateLimit(PipelineBuilder::tokenBucket(<span class="tk-n">2</span>, <span class="tk-n">2</span>, Duration::seconds(<span class="tk-n">1</span>)), cost: <span class="tk-n">3</span>)
+    -&gt;compileInMemory(ExceptionClassifier::create());
+<span class="tk-k">try</span> {
+    <span class="tk-v">$tooCostly</span>-&gt;execute(<span class="tk-k">static</span> <span class="tk-k">fn</span>(): <span class="tk-k">string</span> =&gt; <span class="tk-s">'never runs'</span>, <span class="tk-v">$tooCostly</span>-&gt;newContext(Duration::seconds(<span class="tk-n">30</span>)));
+} <span class="tk-k">catch</span> (ImpossibleAdmissionException <span class="tk-v">$e</span>) {
+    <span class="tk-k">echo</span> get_class(<span class="tk-v">$e</span>), <span class="tk-s">': '</span>, <span class="tk-v">$e</span>-&gt;reason()-&gt;value, <span class="tk-s">"\n"</span>;
+} <span class="tk-k">catch</span> (AdmissionRejectedException | AdmissionDeferredException <span class="tk-v">$e</span>) {
+    <span class="tk-k">echo</span> <span class="tk-s">'unexpected: '</span>, get_class(<span class="tk-v">$e</span>), <span class="tk-s">"\n"</span>;
+    <span class="tk-k">exit</span>(<span class="tk-n">1</span>);
+}</code></pre>
+<pre class="output" tabindex="0" role="group" aria-label="Output"><code class="language-text-output">-- 2. A cost above the capacity can never be admitted
+Enaxon\Reqtide\Exception\ImpossibleAdmissionException: rate.cost_exceeds_capacity</code></pre>
+<p>Read <code>$e-&gt;reason()</code> for the registry code and <code>$e-&gt;decision-&gt;retryAfter</code> for the wait when there is one. See <a href="error-handling.html">Error handling</a> for what to do with each.</p>
+<h2 id="a-fallback-for-refusals-is-a-choice">A fallback for refusals is a choice<a class="anchor" href="#a-fallback-for-refusals-is-a-choice" aria-label="Link to this section">#</a></h2>
+<p>By default a fallback replaces only what your callable did. A rate-limit refusal passes through to you. You can let the fallback replace refusals too, but a fallback that hides refusals also hides that you are being throttled. See <a href="fallback.html">Fallback</a>.</p>
+<h2 id="testing-a-limit">Testing a limit<a class="anchor" href="#testing-a-limit" aria-label="Link to this section">#</a></h2>
+<p>A test of a rate limit that refills over a minute should not wait a minute. Move a virtual clock instead: see <a href="testing.html">Testing with the virtual clock</a>.</p>
+<div class="reading-footer"><a class="prev" href="retry-and-budget.html"><small>Previous</small>Retry and budget</a><a class="next" href="circuit-breaker.html"><small>Next</small>Circuit breaker</a></div>
+</article>
+<nav class="toc" aria-label="On this page"><p>On this page</p><ol><li><a href="#three-algorithms-one-builder-call">Three algorithms, one builder call</a></li><li><a href="#what-a-charge-means">What a charge means</a></li><li><a href="#refusals-rejected-deferred-impossible">Refusals: rejected, deferred, impossible</a></li><li><a href="#a-fallback-for-refusals-is-a-choice">A fallback for refusals is a choice</a></li><li><a href="#testing-a-limit">Testing a limit</a></li></ol></nav>
+</div>
+</main>
+<footer class="footer"><div class="shell footer-inner"><p>Reqtide PHP documentation &middot; MIT licensed &middot; Maintained by Ehsan Enaloo</p><div><a href="../guides/limits.html">Limits</a><a href="../guides/faq.html">FAQ</a><a href="https://github.com/ehsanenaloo/reqtide" rel="noopener">Source repository &#8599;</a></div></div></footer>
+</body>
+</html>

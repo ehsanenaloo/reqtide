@@ -1,0 +1,32 @@
+{
+    "name": "enaxon/reqtide-comparison-harness",
+    "description": "Dev-only behavioural conformance harness comparing Reqtide with alternatives. Never shipped; not part of the repository autoload.",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.4.1",
+        "ackintosh/ganesha": "4.0.0",
+        "caseyamcl/guzzle_retry_middleware": "3.0.0",
+        "guzzlehttp/guzzle": "8.2.0",
+        "matheus85/duat": "0.2.0",
+        "psr/event-dispatcher": "1.0.0",
+        "spatie/guzzle-rate-limiter-middleware": "2.2.0",
+        "symfony/cache": "8.1.8",
+        "symfony/http-client": "8.1.8",
+        "symfony/rate-limiter": "8.1.6"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "2.3.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Comparison\\": "src/",
+            "Comparison\\Adapters\\": "adapters/"
+        },
+        "files": ["src/shadows.php"]
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {}
+    }
+}

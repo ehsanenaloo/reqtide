@@ -1,0 +1,5 @@
+server answered 503 to 3 attempts
+same body every time: yes
+same key every time: yes
+a single operation: 1 request
+a single operation in a retrying pipeline is refused before anything is sent: 1 request in all

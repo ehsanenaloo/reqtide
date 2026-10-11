@@ -1,0 +1,39 @@
+version: 2
+updates:
+  # Root manifest only. packages/redis and packages/guzzle require enaxon/reqtide as self.version, which Dependabot
+  # cannot resolve outside the monorepo; their third-party constraints (predis, guzzle) are the same as in this
+  # manifest's require-dev. benchmarks/comparison pins exact versions on purpose; CI audits its lock file instead.
+  - package-ecosystem: composer
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, php]
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        update-types: [minor, patch]
+    # The PHP constraint is a compatibility promise, not something to bump automatically.
+    ignore:
+      - dependency-name: php
+      # A new major version of Guzzle or Predis is a decision about what the adapters support, not an automatic bump.
+      - dependency-name: guzzlehttp/guzzle
+        update-types: [version-update:semver-major]
+      - dependency-name: predis/predis
+        update-types: [version-update:semver-major]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, github-actions]
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      github-actions:
+        patterns: ["*"]

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/12.0/phpunit.xsd"
+         bootstrap="tools/bootstrap.php"
+         colors="true"
+         cacheDirectory="build/.phpunit.cache"
+         failOnWarning="true"
+         failOnRisky="true"
+         failOnDeprecation="true"
+         failOnNotice="true"
+         beStrictAboutOutputDuringTests="true"
+         executionOrder="random"
+         displayDetailsOnTestsThatTriggerWarnings="true">
+    <testsuites>
+        <testsuite name="core">
+            <directory>tests</directory>
+            <exclude>tests/Testing</exclude>
+        </testsuite>
+        <testsuite name="testing">
+            <directory>tests/Testing</directory>
+        </testsuite>
+        <!-- Redis package: "redis-unit" needs no server and runs in the default check; "redis" needs the server named by RT_REDIS_HOST and is excluded from `composer test` (run `composer test:redis` or `composer check:redis`). -->
+        <testsuite name="redis-unit">
+            <directory>packages/redis/tests/Unit</directory>
+        </testsuite>
+        <!-- Guzzle package: the HTTP fixture server is started by the tests themselves as a child process on loopback, so this suite needs no external service and runs in the default check. -->
+        <testsuite name="guzzle-unit">
+            <directory>packages/guzzle/tests/Unit</directory>
+        </testsuite>
+        <!-- Contract suites against a Redis whose clock the tests control (libfaketime): needs RT_REDIS_HOST and RT_FAKETIME_FILE, run by tools/check-redis-clock.sh. -->
+        <testsuite name="redis-clock">
+            <directory>packages/redis/tests/Clocked</directory>
+        </testsuite>
+        <!-- Redis servers with TLS and a throwaway CA: needs RT_REDIS_HOST and RT_TLS_CA, run by tools/check-redis-tls.sh. -->
+        <testsuite name="redis-tls">
+            <directory>packages/redis/tests/Tls</directory>
+        </testsuite>
+        <testsuite name="redis">
+            <directory>packages/redis/tests/Integration</directory>
+            <directory>packages/guzzle/tests/Redis</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>src</directory>
+        </include>
+    </source>
+</phpunit>

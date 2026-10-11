@@ -1,0 +1,30 @@
+-- explain()
+profile: explain-demo v1
+enabled policies: attempt, retry(maxAttempts=3), rate_limit, circuit, retry_budget
+  invocation=synchronous
+  settlement=inline_return_or_throw
+  attempt_timeout=unsupported
+  cancellation=checkpoint_only
+  scheduling=bounded_blocking
+  queue_ownership=none
+  detached_completion=unsupported
+  nonblocking=not_claimed
+  physical_stop=not_guaranteed
+  require_finite_backend_io=false
+
+-- succeeds on the third attempt
+disposition: succeeded
+  attempt 1: exception, classified 'transient', circuit verdict failure
+  attempt 2: exception, classified 'transient', circuit verdict failure
+  attempt 3: value, classified 'ok', circuit verdict success
+summary: dispatched=3 retries=2 succeeded=1 failed=2 neutral=0 fallbacks=0 accountingComplete=yes elapsedKnown=yes
+
+-- every attempt fails
+disposition: failed
+  attempt 1: exception, classified 'transient', circuit verdict failure
+  attempt 2: exception, classified 'transient', circuit verdict failure
+  attempt 3: exception, classified 'transient', circuit verdict failure
+  diagnostic: retry / attempts_exhausted
+summary: dispatched=3 retries=2 succeeded=0 failed=3 neutral=0 fallbacks=0 accountingComplete=yes elapsedKnown=yes
+problem.code: attempts_exhausted
+ok

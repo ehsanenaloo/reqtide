@@ -1,0 +1,5 @@
+policies: attempt, retry(maxAttempts=1), cooldown
+requests after explain(): 0
+throttled: status 429, requests at the server: 1
+next call during the cooldown: deferred, requests at the server: 1
+reason: cooldown_exceeds_deadline

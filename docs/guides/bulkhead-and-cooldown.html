@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en" dir="ltr" data-root="../">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bulkhead and cooldown | Reqtide PHP documentation</title>
+<meta name="description" content="Limit the work in flight with a leased bulkhead, and pause a whole partition after a server-stated wait with a shared cooldown. What each refuses and what a lease does not do.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0f5c99">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Bulkhead and cooldown | Reqtide PHP documentation">
+<meta property="og:description" content="Limit the work in flight with a leased bulkhead, and pause a whole partition after a server-stated wait with a shared cooldown. What each refuses and what a lease does not do.">
+<meta name="twitter:card" content="summary">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../styles.css">
+<script>try{var t=localStorage.getItem("rt-docs-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+<script defer src="../app.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a><header class="site-header"><div class="shell header-inner"><a class="brand" href="../index.html"><img src="../assets/logo.svg" width="34" height="34" alt=""><span>Reqtide PHP<small>Documentation</small></span></a><nav class="top-nav" aria-label="Primary"><a href="../index.html">Overview</a><a href="../guides/getting-started.html">Getting started</a><a href="../guides/index.html">All guides</a><a href="../guides/api-reference.html">API reference</a><a href="../guides/faq.html">FAQ</a><a href="https://github.com/ehsanenaloo/reqtide" rel="noopener">GitHub &#8599;</a></nav><div class="header-tools"><span data-search-host></span><button type="button" class="icon-button" data-theme-toggle hidden>Theme</button></div></div></header>
+<main id="main">
+<div class="shell page-intro"><p class="breadcrumbs"><a href="../index.html">Home</a> / <a href="index.html">Guides</a> / Protections</p><h1>Bulkhead and cooldown</h1><p class="lead">After this guide you can cap concurrent operations with a bulkhead, you know what its lease promises and what it does not, and you can pause new operations after a server asks you to wait.</p><p class="meta-line">Applies to the unreleased alpha (no version number yet). Checked 2026-10-09 on PHP 8.3 to 8.5.</p></div>
+<div class="shell doc-layout has-toc">
+<aside class="sidebar"><details open><summary>Browse the guides</summary><nav aria-label="Guides"><a href="index.html">All guides</a><p>Get started</p><a href="install.html">Install</a><a href="getting-started.html">Getting started</a><p>Core ideas</p><a href="concepts.html">Concepts</a><p>Protections</p><a href="choosing-policies.html">Choosing policies</a><a href="retry-and-budget.html">Retry and budget</a><a href="rate-limiting.html">Rate limiting</a><a href="circuit-breaker.html">Circuit breaker</a><a href="bulkhead-and-cooldown.html" aria-current="page">Bulkhead and cooldown</a><a href="fallback.html">Fallback</a><p>Errors and tests</p><a href="error-handling.html">Error handling</a><a href="testing.html">Testing with the virtual clock</a><p>Packages</p><a href="redis.html">Shared state with Redis</a><a href="guzzle.html">Guzzle requests with Reqtide</a><p>Reference</p><a href="api-reference.html">API reference</a><a href="limits.html">Limits and non-guarantees</a><p>Trust and help</p><a href="comparison.html">Comparison with other libraries</a><a href="faq.html">FAQ</a></nav></details></aside>
+<article class="prose">
+<aside class="callout warn"><span class="callout-title">Alpha</span><p>Both protections keep their state in one PHP process. The bulkhead counts the operations in flight in that process only, and a cooldown pauses new operations in that process only. See <a href="limits.html">Limits and non-guarantees</a>.</p></aside>
+<p>Code blocks come from <a href="https://github.com/ehsanenaloo/reqtide/blob/main/examples/09-choosing-policies.php" rel="noopener"><code>examples/09-choosing-policies.php</code></a>, which <code>tools/run-examples.sh</code> runs and compares with the recorded output.</p>
+<h2 id="bulkhead">Bulkhead<a class="anchor" href="#bulkhead" aria-label="Link to this section">#</a></h2>
+<p>One slow dependency can use up all the concurrent work a process can do, and then everything else waits behind it. A bulkhead limits operations in flight at once, so the rest of the process keeps working.</p>
+<details><summary>Shared setup for the snippets on this page</summary><pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-c">/** Every pipeline below starts from the same two required options. */</span>
+<span class="tk-v">$base</span> = <span class="tk-k">static</span> <span class="tk-k">fn</span>(): PipelineBuilder =&gt; PipelineBuilder::profile(<span class="tk-s">'choosing'</span>, <span class="tk-s">'v1'</span>)
+    -&gt;partition(<span class="tk-s">'shop'</span>, <span class="tk-s">'prod'</span>, <span class="tk-s">'catalog-api'</span>)
+    -&gt;attemptTimeout(Duration::seconds(<span class="tk-n">2</span>), AttemptTimeoutRequirement::Cooperative);
+
+<span class="tk-v">$ok</span> = <span class="tk-k">static</span> <span class="tk-k">fn</span>(): <span class="tk-k">string</span> =&gt; <span class="tk-s">'ok'</span>;
+<span class="tk-v">$context</span> = <span class="tk-k">static</span> <span class="tk-k">fn</span>(CompiledPipeline <span class="tk-v">$pipeline</span>): ExecutionContext =&gt; <span class="tk-v">$pipeline</span>-&gt;newContext(Duration::seconds(<span class="tk-n">30</span>));</code></pre></details>
+<p>The snippet allows one operation in flight. While the outer operation holds the only slot, an inner call is refused:</p>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-k">echo</span> <span class="tk-s">"-- 2. Bulkhead: at most one operation in flight\n"</span>;
+<span class="tk-v">$pipeline</span> = <span class="tk-v">$base</span>()-&gt;bulkhead(<span class="tk-n">1</span>, Duration::seconds(<span class="tk-n">10</span>))-&gt;compileInMemory(ExceptionClassifier::create());
+<span class="tk-v">$outer</span> = <span class="tk-v">$pipeline</span>-&gt;execute(<span class="tk-k">static</span> <span class="tk-k">function</span> () <span class="tk-k">use</span> (<span class="tk-v">$pipeline</span>, <span class="tk-v">$context</span>): <span class="tk-k">string</span> {
+    <span class="tk-k">try</span> {
+        <span class="tk-c">// Called while the outer operation still holds the only slot.</span>
+        <span class="tk-k">return</span> <span class="tk-v">$pipeline</span>-&gt;execute(<span class="tk-k">static</span> <span class="tk-k">fn</span>(): <span class="tk-k">string</span> =&gt; <span class="tk-s">'inner'</span>, <span class="tk-v">$context</span>(<span class="tk-v">$pipeline</span>));
+    } <span class="tk-k">catch</span> (AdmissionRejectedException <span class="tk-v">$e</span>) {
+        <span class="tk-k">return</span> <span class="tk-s">"</span><span class="tk-s">inner call refused with </span><span class="tk-s">{</span><span class="tk-s">$e</span><span class="tk-s">-&gt;</span><span class="tk-s">reason</span>()<span class="tk-s">-&gt;</span><span class="tk-s">value</span>}<span class="tk-s">"</span>;
+    }
+}, <span class="tk-v">$context</span>(<span class="tk-v">$pipeline</span>));
+<span class="tk-k">echo</span> <span class="tk-s">"</span><span class="tk-s">{</span><span class="tk-s">$outer</span>}<span class="tk-s">\n</span><span class="tk-s">"</span>;</code></pre>
+<pre class="output" tabindex="0" role="group" aria-label="Output"><code class="language-text-output">-- 2. Bulkhead: at most one operation in flight
+inner call refused with concurrency_capacity_exhausted</code></pre>
+<p><code>bulkhead(capacity, lease)</code>:</p>
+<ul><li><code>capacity</code> is the number of slots.</li><li>A slot is held while an attempt runs and released when it settles. Nothing is held during a retry delay.</li><li><code>lease</code> bounds how long a slot stays reserved if its owner vanishes. It must exceed the attempt timeout by more than 1 second.</li></ul>
+<p>The refusal is an <code>AdmissionRejectedException</code> with reason <code>concurrency_capacity_exhausted</code>. Your callable did not run.</p>
+<aside class="callout warn"><span class="callout-title">What a lease does not do</span><p>A lease expiring does not stop a callback that is still running. The slot becomes free again, so a new operation may start while the first callback is still running, and the number of callbacks actually running can briefly exceed the capacity. A late release cannot free a newer holder's slot, and every permit ends exactly once. Reqtide cannot stop your code. Make the callable respect the attempt timeout.</p></aside>
+<h2 id="cooldown">Cooldown<a class="anchor" href="#cooldown" aria-label="Link to this section">#</a></h2>
+<p>When a server answers "slow down, retry after 60 seconds", every other operation in the same partition should wait too, not find out one by one. A cooldown is that shared pause.</p>
+<p><code>cooldown(cleanupGrace)</code> turns it on. <code>cleanupGrace</code> is how long the state is kept after the pause ended. The cooldown activates only when your classifier reports waits, with <code>ExceptionClassifier::retryAfterFrom()</code>. Without one it never activates. Reqtide has no HTTP awareness, so turning a 429 and its header into a <code>Duration</code> is your job.</p>
+<p>The snippet below continues the pipeline from <a href="retry-and-budget.html">Retry and budget</a>, where the first operation was deferred because a 60-second wait does not fit the retry policy's 100 ms maximum delay. The second operation never calls the callable:</p>
+<pre tabindex="0" role="group" aria-label="PHP code"><code class="language-php"><span class="tk-k">try</span> {
+    <span class="tk-v">$pipeline</span>-&gt;execute(<span class="tk-v">$throttled</span>, <span class="tk-v">$pipeline</span>-&gt;newContext(Duration::seconds(<span class="tk-n">30</span>), <span class="tk-v">$safety</span>()));
+} <span class="tk-k">catch</span> (AdmissionDeferredException <span class="tk-v">$e</span>) {
+    <span class="tk-k">echo</span> <span class="tk-s">"</span><span class="tk-s">next operation deferred with </span><span class="tk-s">{</span><span class="tk-s">$e</span><span class="tk-s">-&gt;</span><span class="tk-s">reason</span>()<span class="tk-s">-&gt;</span><span class="tk-s">value</span>}<span class="tk-s">; the callable ran </span><span class="tk-s">{</span><span class="tk-s">$calls</span>}<span class="tk-s"> time(s) in total\n</span><span class="tk-s">"</span>;
+}</code></pre>
+<pre class="output" tabindex="0" role="group" aria-label="Output"><code class="language-text-output">next operation deferred with cooldown_exceeds_deadline; the callable ran 1 time(s) in total</code></pre>
+<p>A positive <code>Retry-After</code> extends the shared cooldown for the partition. While it is active, new operations are deferred with <code>cooldown_active</code>, or with <code>cooldown_exceeds_deadline</code> when the wait does not fit the operation's own deadline, as above. The callable ran once in total.</p>
+<h2 id="the-order-of-checks">The order of checks<a class="anchor" href="#the-order-of-checks" aria-label="Link to this section">#</a></h2>
+<p>The cooldown is checked after the circuit and the bulkhead and before the rate limit. If a later check refuses, the permits taken earlier are released. See <a href="concepts.html">Concepts</a>.</p>
+<h2 id="testing-both">Testing both<a class="anchor" href="#testing-both" aria-label="Link to this section">#</a></h2>
+<p>A bulkhead and a cooldown depend on time. Test them with a virtual clock instead of waiting: see <a href="testing.html">Testing with the virtual clock</a>.</p>
+<div class="reading-footer"><a class="prev" href="circuit-breaker.html"><small>Previous</small>Circuit breaker</a><a class="next" href="fallback.html"><small>Next</small>Fallback</a></div>
+</article>
+<nav class="toc" aria-label="On this page"><p>On this page</p><ol><li><a href="#bulkhead">Bulkhead</a></li><li><a href="#cooldown">Cooldown</a></li><li><a href="#the-order-of-checks">The order of checks</a></li><li><a href="#testing-both">Testing both</a></li></ol></nav>
+</div>
+</main>
+<footer class="footer"><div class="shell footer-inner"><p>Reqtide PHP documentation &middot; MIT licensed &middot; Maintained by Ehsan Enaloo</p><div><a href="../guides/limits.html">Limits</a><a href="../guides/faq.html">FAQ</a><a href="https://github.com/ehsanenaloo/reqtide" rel="noopener">Source repository &#8599;</a></div></div></footer>
+</body>
+</html>
