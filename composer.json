@@ -70,8 +70,8 @@
         "check:redis": "bash tools/check-redis.sh",
         "check:redis-clock": "bash tools/check-redis-clock.sh",
         "check:redis-tls": "bash tools/check-redis-tls.sh",
-        "test:coverage": "phpunit --coverage-text --coverage-clover=build/coverage.xml",
-        "coverage": "phpunit --coverage-text --coverage-clover=build/coverage/clover.xml --coverage-html=build/coverage/html",
+        "test:coverage": "phpunit --exclude-testsuite redis,redis-clock,redis-tls --coverage-text --coverage-clover=build/coverage.xml",
+        "coverage": "phpunit --exclude-testsuite redis,redis-clock,redis-tls --coverage-text --coverage-clover=build/coverage/clover.xml --coverage-html=build/coverage/html",
         "mutation": [
             "Composer\\Config::disableProcessTimeout",
             "@php tools/mutation-config.php",
