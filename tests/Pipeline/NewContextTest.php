@@ -155,4 +155,87 @@ final class NewContextTest extends TestCase
             \Enaxon\Reqtide\Execution\ReplaySafetyContract::forReadOnlyCallable('read', Duration::seconds(3600), $h->clock, ['transient']),
         ))));
     }
+
+    public function testARetryingPipelineRefusesAReplayContractThatEndsBeforeTheDeadline(): void
+    {
+        $h = new Harness(false, false, false, true);
+        $contract = \Enaxon\Reqtide\Execution\ReplaySafetyContract::forReadOnlyCallable('orders.read', Duration::seconds(5), $h->clock);
+        // A millisecond passes between the contract and the context.
+        $h->clock->wall = new \DateTimeImmutable('2026-10-08T00:00:00.001+00:00');
+
+        try {
+            $h->pipeline(Harness::retry(3))->newContext(Duration::seconds(5), OperationSafety::replayableRead($contract));
+            self::fail('A contract that ends with the deadline can never allow a retry.');
+        } catch (InvalidConfigurationException $refusal) {
+            self::assertStringContainsString('validFor', $refusal->getMessage());
+        }
+
+        $longer = \Enaxon\Reqtide\Execution\ReplaySafetyContract::forReadOnlyCallable('orders.read', Duration::seconds(6), $h->clock);
+        $context = $h->pipeline(Harness::retry(3))->newContext(Duration::seconds(5), OperationSafety::replayableRead($longer));
+        self::assertSame($longer, $context->metadata->safety->contract);
+    }
+
+    public function testARetentionShorterThanTheTimeoutIsRefusedToo(): void
+    {
+        $h = new Harness(false, false, false, true);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $h->pipeline(Harness::retry(3))->newContext(Duration::seconds(3601), Harness::replayable());
+    }
+
+    public function testAPipelineThatDoesNotRetryDoesNotCheckTheContract(): void
+    {
+        $h = new Harness(false, false, false, true);
+        $contract = \Enaxon\Reqtide\Execution\ReplaySafetyContract::forReadOnlyCallable('orders.read', Duration::seconds(5), $h->clock);
+
+        $context = $h->pipeline(Harness::retry(1))->newContext(Duration::seconds(5), OperationSafety::replayableRead($contract));
+
+        self::assertSame($contract, $context->metadata->safety->contract);
+    }
+
+    public function testTheRunTimeCheckStillGuardsAContextBuiltWithoutNewContext(): void
+    {
+        $h = new Harness(false, false, false, true);
+        $contract = \Enaxon\Reqtide\Execution\ReplaySafetyContract::forReadOnlyCallable('orders.read', Duration::seconds(5), $h->clock);
+        // A millisecond passes between the contract and the context, as it always does outside a virtual clock.
+        $h->clock->wall = new \DateTimeImmutable('2026-10-08T00:00:00.001+00:00');
+        $context = $h->context(Duration::seconds(5), null, OperationSafety::replayableRead($contract));
+        $spy = DispatchSpy::throwing(new \RuntimeException('transient'), $h->log);
+
+        $completion = $h->pipeline(Harness::retry(3))->executeDetailed($spy->callable(), $context);
+
+        self::assertSame(1, $spy->dispatches);
+        self::assertContains('replay_horizon_inadequate', array_map(static fn(\Enaxon\Reqtide\Completion\Diagnostic $d): string => $d->reasonCode, $completion->diagnostics));
+    }
+
+    public function testTheContractBoundariesAreExactToTheMicrosecond(): void
+    {
+        $h = new Harness(false, false, false, true);
+        $pipeline = $h->pipeline(Harness::retry(3));
+
+        // Harness::replayable() is valid for exactly one hour from now and keeps the identity for one hour.
+        $pipeline->newContext(Duration::seconds(3600), Harness::replayable());
+
+        try {
+            $pipeline->newContext(Duration::nanoseconds(3_600_000_000_001), Harness::replayable());
+            self::fail('One microsecond (rounded up) beyond the contract is refused.');
+        } catch (InvalidConfigurationException) {
+        }
+
+        $short = \Enaxon\Reqtide\Execution\ReplaySafetyContract::forReadOnlyCallable('orders.read', Duration::microseconds(5_000_001), $h->clock);
+        $pipeline->newContext(Duration::seconds(5), OperationSafety::replayableRead($short));
+        $exact = \Enaxon\Reqtide\Execution\ReplaySafetyContract::forReadOnlyCallable('orders.read', Duration::microseconds(4_999_999), $h->clock);
+        $this->expectException(InvalidConfigurationException::class);
+        $pipeline->newContext(Duration::seconds(5), OperationSafety::replayableRead($exact));
+    }
+
+    public function testASinglePermittedAttemptNeverChecksTheContractEvenWhenItIsFarTooShort(): void
+    {
+        $h = new Harness(false, false, false, true);
+        $contract = \Enaxon\Reqtide\Execution\ReplaySafetyContract::forReadOnlyCallable('orders.read', Duration::seconds(1), $h->clock);
+
+        $context = $h->pipeline(Harness::retry(1))->newContext(Duration::seconds(60), OperationSafety::replayableRead($contract));
+
+        self::assertSame($contract, $context->metadata->safety->contract);
+    }
 }

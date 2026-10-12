@@ -228,7 +228,23 @@ final class ReadOnlyCallableContractTest extends TestCase
         $spy = DispatchSpy::throwing(new \RuntimeException('down'), $log);
         $contract = ReplaySafetyContract::forReadOnlyCallable('read', Duration::seconds(10), self::clockAt('2026-10-08T00:00:00+00:00'));
 
-        $completion = $pipeline->executeDetailed($spy->callable(), $pipeline->newContext(Duration::seconds(60), OperationSafety::replayableRead($contract)));
+        try {
+            $pipeline->newContext(Duration::seconds(60), OperationSafety::replayableRead($contract));
+            self::fail('newContext() refuses a contract that cannot cover the deadline.');
+        } catch (InvalidConfigurationException $refusal) {
+            self::assertStringContainsString('validFor', $refusal->getMessage());
+        }
+
+        // A context built by hand still runs once and says why it did not retry.
+        $context = new \Enaxon\Reqtide\Execution\ExecutionContext(
+            new \Enaxon\Reqtide\Value\OperationId('op-1'),
+            new \Enaxon\Reqtide\Value\PartitionIdentity(new \Enaxon\Reqtide\Value\ApplicationId('app'), new \Enaxon\Reqtide\Value\EnvironmentId('test'), null, new \Enaxon\Reqtide\Value\SubjectId('subject')),
+            \Enaxon\Reqtide\Time\Deadline::after(Duration::seconds(60), $clock),
+            new \Enaxon\Reqtide\Time\NeverCancelled(),
+            new \Enaxon\Reqtide\Execution\OperationMetadata(OperationSafety::replayableRead($contract), \Enaxon\Reqtide\Execution\BoundedMetadata::empty()),
+            null,
+        );
+        $completion = $pipeline->executeDetailed($spy->callable(), $context);
 
         self::assertSame(1, $spy->dispatches);
         $reasons = array_map(static fn($d): string => $d->reasonCode, $completion->diagnostics);

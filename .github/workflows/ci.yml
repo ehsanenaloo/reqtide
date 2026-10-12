@@ -44,7 +44,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
-          key: composer-${{ runner.os }}-php${{ matrix.php }}-${{ hashFiles('composer.json') }}
+          key: composer-${{ runner.os }}-php${{ matrix.php }}-${{ hashFiles('composer.json', 'composer.lock') }}
           restore-keys: composer-${{ runner.os }}-php${{ matrix.php }}-
 
       - name: Install dependencies
@@ -122,6 +122,32 @@ jobs:
 
       - name: Redis suite
         run: composer test:redis
+
+  lowest:
+    if: github.repository == 'ehsanenaloo/reqtide'
+    name: Lowest dependencies (PHP 8.3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: "8.3"
+          extensions: bcmath, curl
+          coverage: none
+          tools: composer:v2
+
+      # The other jobs install the committed lock; this one proves the lowest versions the manifests allow.
+      - name: Install the lowest allowed versions
+        run: composer update --prefer-lowest --prefer-stable --no-interaction --no-progress
+
+      - name: Tests
+        run: composer test
 
   redis-specialized:
     if: github.repository == 'ehsanenaloo/reqtide'

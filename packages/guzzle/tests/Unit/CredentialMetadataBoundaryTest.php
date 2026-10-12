@@ -156,6 +156,136 @@ final class CredentialMetadataBoundaryTest extends TestCase
         self::assertSame($this->read($request)->descriptor->credentialFingerprint, $this->resolved($defaults, $request));
     }
 
+    /** @param array<string, string> $headers */
+    private function withUserInfo(string $userInfo, array $headers = []): Request
+    {
+        $uri = (new \GuzzleHttp\Psr7\Uri(self::$server->baseUri . '/status/200'));
+
+        return new Request('GET', $uri->withUserInfo(...explode(':', $userInfo, 2)), $headers);
+    }
+
+    /** @return iterable<string, array{bool, string, string}> */
+    public static function userInfo(): iterable
+    {
+        foreach ([false => 'synchronous', true => 'promise'] as $async => $path) {
+            yield $path . ', plain' => [(bool) $async, 'probe-user:probe-pass', 'Basic ' . base64_encode('probe-user:probe-pass')];
+            yield $path . ', encoded' => [(bool) $async, 'us@er:p:ss', 'Basic ' . base64_encode('us@er:p:ss')];
+        }
+    }
+
+    #[DataProvider('userInfo')]
+    public function testCredentialsInTheRequestUriAreInTheFingerprint(bool $async, string $userInfo, string $expectedHeader): void
+    {
+        $request = $this->withUserInfo($userInfo);
+
+        $this->dispatch([], $this->read($request), $async);
+
+        self::assertSame([$expectedHeader], self::sentAuthorization());
+        self::assertNotNull($this->read($request)->descriptor->credentialFingerprint);
+        self::assertSame($this->fingerprintOfWhatWasSent(), $this->read($request)->descriptor->credentialFingerprint);
+        self::assertNotSame(
+            $this->read($request)->descriptor->credentialFingerprint,
+            $this->read($this->withUserInfo('other-user:probe-pass'))->descriptor->credentialFingerprint,
+            'another user is another credential',
+        );
+    }
+
+    #[DataProvider('paths')]
+    public function testAnAuthorizationHeaderWinsOverCredentialsInTheRequestUri(bool $async): void
+    {
+        $request = $this->withUserInfo('probe-user:probe-pass', ['Authorization' => 'Bearer given-token']);
+
+        $this->dispatch([], $this->read($request), $async);
+
+        self::assertSame(['Bearer given-token'], self::sentAuthorization());
+        self::assertSame($this->fingerprintOfWhatWasSent(), $this->read($request)->descriptor->credentialFingerprint);
+    }
+
+    #[DataProvider('paths')]
+    public function testABasicAuthDefaultWinsOverCredentialsInTheRequestUri(bool $async): void
+    {
+        $defaults = ['auth' => ['test-user', 'test-pass']];
+        $request = $this->withUserInfo('probe-user:probe-pass');
+
+        $this->dispatch($defaults, $this->read($request), $async);
+
+        self::assertSame(['Basic ' . base64_encode('test-user:test-pass')], self::sentAuthorization());
+        self::assertSame($this->fingerprintOfWhatWasSent(), $this->resolved($defaults, $request));
+    }
+
+    public function testCredentialsInTheRequestUriTogetherWithDigestAuthChangeTheFingerprintWhenEitherChanges(): void
+    {
+        $digest = ['auth' => ['user', 'one', 'digest']];
+        $request = new Request('GET', 'https://probe-user:probe-pass@api.example.com/items');
+        $both = $this->resolved($digest, $request);
+
+        self::assertNotNull($both);
+        self::assertNotSame($both, $this->resolved($digest, new Request('GET', 'https://other-user:probe-pass@api.example.com/items')));
+        self::assertNotSame($both, $this->resolved(['auth' => ['user', 'two', 'digest']], $request));
+        self::assertNotSame($both, $this->resolved($digest, new Request('GET', 'https://api.example.com/items')));
+    }
+
+    /**
+     * @param array<string, mixed> $defaults
+     * @param list<string> $credentialHeaders
+     */
+    private function resolvedWith(array $defaults, array $credentialHeaders, Request $request): ?string
+    {
+        return $this->read($request)->forClient(new GuzzleConfiguration(HttpOutcomeClassifier::starter(), $defaults, null, $credentialHeaders))->descriptor->credentialFingerprint;
+    }
+
+    public function testConfiguredCredentialHeadersAreInTheFingerprint(): void
+    {
+        $plain = new Request('GET', 'https://api.example.com/items');
+        $keyed = $plain->withHeader('X-Api-Key', 'key-one');
+
+        self::assertNull($this->resolvedWith([], ['X-Api-Key'], $plain));
+        self::assertNotNull($this->resolvedWith([], ['X-Api-Key'], $keyed));
+        self::assertNotSame($this->resolvedWith([], ['X-Api-Key'], $keyed), $this->resolvedWith([], ['X-Api-Key'], $plain->withHeader('X-Api-Key', 'key-two')));
+        self::assertNull($this->resolvedWith([], [], $keyed), 'a header that is not named as a credential is not part of the fingerprint');
+        self::assertSame(
+            $this->resolvedWith([], ['x-api-key'], $keyed),
+            $this->resolvedWith(['headers' => ['X-API-KEY' => 'key-one']], ['X-Api-Key'], $plain),
+            'a default header is the same credential as the request header it fills in, whatever the case of the name',
+        );
+        self::assertSame(
+            $this->resolvedWith([], ['X-Api-Key'], $keyed),
+            $this->resolvedWith(['headers' => ['X-Api-Key' => 'other']], ['X-Api-Key'], $keyed),
+            'the request header wins over the default',
+        );
+    }
+
+    public function testTheClientCertificateAndKeyAreInTheFingerprint(): void
+    {
+        $request = new Request('GET', 'https://api.example.com/items');
+        $a = $this->resolvedWith(['cert' => '/etc/tls/client-a.pem'], [], $request);
+        $b = $this->resolvedWith(['cert' => '/etc/tls/client-b.pem'], [], $request);
+        $withPassword = $this->resolvedWith(['cert' => ['/etc/tls/client-a.pem', 'pass-one']], [], $request);
+        $key = $this->resolvedWith(['cert' => '/etc/tls/client-a.pem', 'ssl_key' => ['/etc/tls/client-a.key', 'pass-two']], [], $request);
+
+        self::assertNotNull($a);
+        self::assertNotSame($a, $b);
+        self::assertNotSame($a, $withPassword);
+        self::assertNotSame($a, $key);
+    }
+
+    /** @return iterable<string, array{list<string>}> */
+    public static function badHeaderNames(): iterable
+    {
+        yield 'space' => [['X Api Key']];
+        yield 'colon' => [['X-Api-Key:']];
+        yield 'empty' => [['']];
+        yield 'too long' => [[str_repeat('a', 65)]];
+    }
+
+    /** @param list<string> $names */
+    #[DataProvider('badHeaderNames')]
+    public function testACredentialHeaderMustBeAHeaderName(array $names): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        new GuzzleConfiguration(null, [], null, $names);
+    }
+
     public function testWithoutDefaultsTheDescriptorIsUnchanged(): void
     {
         $operation = $this->read(new Request('GET', self::$server->baseUri . '/status/200', ['Authorization' => 'Bearer given-token']));

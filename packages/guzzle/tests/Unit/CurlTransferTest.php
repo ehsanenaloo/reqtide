@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Enaxon\Reqtide\Guzzle\Tests\Unit;
 
+use Enaxon\Reqtide\Exception\DeadlineExceededException;
 use Enaxon\Reqtide\Exception\InvalidConfigurationException;
 use Enaxon\Reqtide\Execution\AttemptContext;
 use Enaxon\Reqtide\Guzzle\HttpOperation;
@@ -28,6 +29,7 @@ use GuzzleHttp\Psr7\PumpStream;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\Psr7\Utils;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 
@@ -99,10 +101,35 @@ final class CurlTransferTest extends TestCase
 
     public function testTheTimeoutIsNeverZeroAndReadTimeoutIsNeverSet(): void
     {
-        $expired = $this->optionsFor(Duration::seconds(2), Duration::seconds(1), Duration::seconds(5));
-        self::assertSame(0.001, $expired['timeout'], 'zero would mean "wait forever" in cURL');
-        self::assertArrayNotHasKey('read_timeout', $expired);
+        $almost = $this->optionsFor(Duration::seconds(2), Duration::seconds(1), Duration::nanoseconds(999_999_999));
+        self::assertSame(0.001, $almost['timeout'], 'one nanosecond left is sent as the 1 ms granularity of cURL; zero would mean "wait forever"');
+        self::assertArrayNotHasKey('read_timeout', $almost);
         self::assertArrayNotHasKey('read_timeout', $this->optionsFor(Duration::seconds(2), Duration::seconds(10)));
+        self::assertSame(0.001, $this->optionsFor(Duration::seconds(2), Duration::seconds(1), Duration::nanoseconds(999_000_001))['timeout']);
+        self::assertSame(0.001, $this->optionsFor(Duration::seconds(2), Duration::seconds(1), Duration::nanoseconds(999_000_000))['timeout']);
+    }
+
+    /** @return iterable<string, array{int}> */
+    public static function exhausted(): iterable
+    {
+        yield 'deadline reached' => [1_000_000_000];
+        yield 'deadline passed' => [5_000_000_000];
+    }
+
+    #[DataProvider('exhausted')]
+    public function testNoTransferStartsWhenTheDeadlineHasBeenReached(int $elapsedNanoseconds): void
+    {
+        $clock = new VirtualClock();
+        $client = new RecordingClient();
+        [$context, $controls] = $this->attempt($clock, Duration::seconds(2), Duration::seconds(1));
+        $clock->advance(Duration::nanoseconds($elapsedNanoseconds));
+
+        try {
+            CurlTransfer::forClient($client)->send(new Request('GET', 'https://api.example.com/x'), $context, $controls);
+            self::fail('expected the transfer to be refused');
+        } catch (DeadlineExceededException) {
+            self::assertSame([], $client->sends, 'nothing was handed to Guzzle');
+        }
     }
 
     public function testResponsesAreValuesAndRedirectsAreNotFollowed(): void

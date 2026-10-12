@@ -35,6 +35,9 @@ final class SpyOperation implements AttemptOperation, PreparedAttempt
     /** @var (\Closure(): string)|null */
     public ?\Closure $body = null;
 
+    /** @var (\Closure(): void)|null runs inside discardOutcome() */
+    public ?\Closure $onDiscard = null;
+
     public function __construct(private readonly ?CallLog $log = null) {}
 
     public function prepare(AttemptContext $context): PreparedAttempt
@@ -69,5 +72,8 @@ final class SpyOperation implements AttemptOperation, PreparedAttempt
     {
         $this->log?->add('discard');
         $this->discarded[] = $outcome;
+        if ($this->onDiscard !== null) {
+            ($this->onDiscard)();
+        }
     }
 }

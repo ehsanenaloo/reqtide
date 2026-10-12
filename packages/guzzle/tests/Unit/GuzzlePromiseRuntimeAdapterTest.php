@@ -161,9 +161,19 @@ final class GuzzlePromiseRuntimeAdapterTest extends TestCase
         }
     }
 
+    /**
+     * One finished operation on the transfer before a timing assertion: the first operation of a process loads the
+     * classes of the pipeline and the transfer (slow on a bind-mounted source tree) and is not what the bound measures.
+     */
+    private function warmUp(CurlMultiTransfer $transfer): void
+    {
+        $this->execute($this->pipeline($transfer), $transfer, $this->read('/status/200'), Duration::seconds(10));
+    }
+
     public function testACancellationRequestDuringTheTransferEndsItPromptlyAndNothingIsRetried(): void
     {
         $transfer = new CurlMultiTransfer();
+        $this->warmUp($transfer);
         $started = hrtime(true);
         try {
             $this->execute($this->pipeline($transfer), $transfer, $this->read('/slow?ms=3000'), Duration::seconds(20), new CancelAfterSeconds(0.2));
@@ -179,6 +189,7 @@ final class GuzzlePromiseRuntimeAdapterTest extends TestCase
     public function testTheDeadlineEndsTheTransferWithinTheDrivingGranularity(): void
     {
         $transfer = new CurlMultiTransfer();
+        $this->warmUp($transfer);
         $started = hrtime(true);
         try {
             $this->execute($this->pipeline($transfer, Duration::seconds(20)), $transfer, $this->read('/slow?ms=3000'), Duration::milliseconds(400));

@@ -60,8 +60,6 @@ final class MemoryRateLimitBackend implements RateLimitBackend
     /** @var array<string, RateRecord> */
     private array $records = [];
 
-    private int $maintenanceCursor = 0;
-
     /** Wall-clock epoch nanoseconds minus the monotonic reading, captured once; used only to place window boundaries. */
     private readonly int $epochAnchor;
 
@@ -156,9 +154,11 @@ final class MemoryRateLimitBackend implements RateLimitBackend
     }
 
     /**
-     * Bounded cleanup: examines at most $maxRecords (1..128) records from a persistent cursor and removes only
-     * those equivalent to fresh state after the retention period. Returns the number removed. It never
-     * evicts protection that still matters, and a removed record's settings binding ends with it.
+     * Bounded cleanup: examines at most $maxRecords (1..128) records, the ones not examined for the longest time, and
+     * removes only those equivalent to fresh state after the retention period. Returns the number removed. A kept
+     * record moves to the end of the examination order, so the cost of one call does not grow with the number of
+     * partitions and every record is examined in turn. It never evicts protection that still matters, and a removed
+     * record's settings binding ends with it.
      */
     public function maintain(int $maxRecords = self::MAX_MAINTENANCE_RECORDS): int
     {
@@ -167,21 +167,27 @@ final class MemoryRateLimitBackend implements RateLimitBackend
         }
 
         $now = $this->clock->monotonicNow();
-        $batch = array_slice($this->records, $this->maintenanceCursor, $maxRecords, true);
+        $keys = [];
+        foreach ($this->records as $key => $record) {
+            $keys[] = $key;
+            if (count($keys) >= $maxRecords) {
+                break;
+            }
+        }
         $removed = 0;
-        foreach ($batch as $key => $record) {
+        foreach ($keys as $key) {
+            $record = $this->records[$key];
+            unset($this->records[$key]);
             $eff = max($record->lastTick, $now);
             if (
                 $eff - $record->lastTick >= self::RETENTION_NANOSECONDS
                 && RateAlgorithms::isFreshEquivalent($record->options, $record, $eff, $this->epochAnchor)
             ) {
-                unset($this->records[$key]);
                 ++$removed;
+                continue;
             }
+            $this->records[$key] = $record;
         }
-
-        $examined = count($batch);
-        $this->maintenanceCursor = $examined < $maxRecords ? 0 : $this->maintenanceCursor + $examined - $removed;
 
         return $removed;
     }

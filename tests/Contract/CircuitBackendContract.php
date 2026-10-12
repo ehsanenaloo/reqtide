@@ -461,6 +461,30 @@ abstract class CircuitBackendContract extends TestCase
         $rig->advance(120 * self::S);
         self::assertSame(CircuitAdmissionStatus::Accepted, $rig->status($policy));
     }
+    public function testOnePartitionCannotTakeTheLastQuarterOfTheRecordCeiling(): void
+    {
+        // Ceiling 8: one partition may hold 8 - floor(8 / 4) = 6 active permits; the rest stays for the others.
+        $rig = $this->rig(maxRecords: 8);
+        $slow = ContractCircuitRig::countPolicy(minimum: 100, identity: ContractIdentities::identity('slow'));
+        $other = ContractCircuitRig::countPolicy(minimum: 100, identity: ContractIdentities::identity('other'));
+        $held = [];
+        for ($i = 0; $i < 6; ++$i) {
+            $held[] = $rig->permit($slow);
+        }
+        try {
+            $rig->acquire($slow);
+            self::fail('Expected StateCapacityExceededException for the partition that holds three quarters of the ceiling.');
+        } catch (StateCapacityExceededException) {
+            // Refused for this partition only.
+        }
+
+        $rig->permit($other);
+        $rig->permit($other);
+
+        self::assertSame(FinalizationStatus::Applied, $rig->record($slow, $held[0], self::success()));
+        $rig->permit($slow);
+    }
+
     private function trip(ContractCircuitRig $rig, CircuitPolicy $policy): void
     {
         $rig->complete($policy, self::failure());

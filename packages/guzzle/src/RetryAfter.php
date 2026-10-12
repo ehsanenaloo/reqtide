@@ -100,7 +100,9 @@ final class RetryAfter
             return self::build($m[1], false, (int) $m[2], $m[3], (int) $m[4], (int) $m[5], (int) $m[6], (int) $m[7]);
         }
         if (preg_match('~^(' . $long . '), ([0-9]{2})-(' . $months . ')-([0-9]{2}) ' . $time . ' GMT\z~', $text, $m) === 1) {
-            return self::build($m[1], true, (int) $m[2], $m[3], self::fullYear((int) $m[4], (int) $now->format('Y')), (int) $m[5], (int) $m[6], (int) $m[7]);
+            $year = self::fullYear((int) $m[4], $m[3], (int) $m[2], (int) $m[5], (int) $m[6], (int) $m[7], $now);
+
+            return self::build($m[1], true, (int) $m[2], $m[3], $year, (int) $m[5], (int) $m[6], (int) $m[7]);
         }
         if (preg_match('~^(' . $short . ') (' . $months . ') ( [1-9]|[0-9]{2}) ' . $time . ' ([0-9]{4})\z~', $text, $m) === 1) {
             return self::build($m[1], false, (int) trim($m[3]), $m[2], (int) $m[7], (int) $m[4], (int) $m[5], (int) $m[6]);
@@ -109,12 +111,25 @@ final class RetryAfter
         return null;
     }
 
-    /** RFC 9110: a two-digit year that would be more than 50 years ahead means the past century. */
-    private static function fullYear(int $twoDigits, int $currentYear): int
+    /**
+     * RFC 9110, section 5.6.7: a two-digit year means the most recent year with those digits whose instant is not more
+     * than 50 years in the future. The candidates are the same digits in the last, this and the next century, compared
+     * by their full instant; the weekday is checked afterwards, so it can never choose the century.
+     */
+    private static function fullYear(int $twoDigits, string $month, int $day, int $hour, int $minute, int $second, \DateTimeImmutable $now): int
     {
-        $year = intdiv($currentYear, 100) * 100 + $twoDigits;
+        $limit = $now->setTimezone(new \DateTimeZone('UTC'))->modify('+50 years');
+        $century = intdiv((int) $now->format('Y'), 100) * 100;
+        $monthNumber = self::MONTHS[$month];
+        foreach ([$century + 100, $century, $century - 100] as $candidate) {
+            $year = $candidate + $twoDigits;
+            $instant = (new \DateTimeImmutable('@0'))->setDate($year, $monthNumber, $day)->setTime($hour, $minute, $second);
+            if ($instant <= $limit) {
+                return $year;
+            }
+        }
 
-        return $year > $currentYear + 50 ? $year - 100 : $year;
+        return $century - 100 + $twoDigits;
     }
 
     private static function build(string $dayName, bool $longName, int $day, string $month, int $year, int $hour, int $minute, int $second): ?\DateTimeImmutable

@@ -59,7 +59,9 @@ final class CompiledPipeline
      *
      * - `$timeout` is the total budget of the whole logical operation (all attempts and delays), must be positive.
      * - `$safety` defaults to {@see OperationSafety::unsafe()}: a pipeline with `maxAttempts > 1` then refuses to
-     *   run. Pass an explicit replay-safety assertion to allow retries.
+     *   run. Pass an explicit replay-safety assertion to allow retries. For a retrying pipeline its contract must
+     *   outlast the timeout (validity and retention); a contract that ends before the deadline could never allow
+     *   a retry and is refused here, instead of running without retries.
      * - `$operationId` defaults to a random 128-bit hex id; pass your own to correlate with your logs.
      * - `$partition` defaults to the definition's partition (always set for a {@see PipelineBuilder} pipeline, even
      *   one with no state policy). It is needed only for a hand-built {@see PipelineDefinition} that has neither a
@@ -71,7 +73,7 @@ final class CompiledPipeline
      * @template T = never
      * @param FallbackOperation<T>|null $fallback
      * @return ExecutionContext<T>
-     * @throws InvalidConfigurationException when the timeout is not positive, the deadline overflows, the operation id is invalid or no partition can be determined
+     * @throws InvalidConfigurationException when the timeout is not positive, the deadline overflows, the operation id is invalid, no partition can be determined, or a retrying pipeline gets a replay contract that ends before the deadline
      * @throws ClockFailureException when the clock cannot be read
      */
     public function newContext(
@@ -92,6 +94,16 @@ final class CompiledPipeline
                 'newContext() cannot determine the partition: this definition was constructed directly without a partition and without a rate limit, circuit breaker, bulkhead, retry budget or cooldown. Pass partition: explicitly.',
             );
         }
+        $safety ??= OperationSafety::unsafe();
+        if ($this->definition->retry->maxAttempts->value > 1 && $safety->contract !== null) {
+            $contract = $safety->contract;
+            $end = $this->environment->clock->wallNow()->setTimezone(new \DateTimeZone('UTC'))->modify('+' . $timeout->ceilMicroseconds() . ' microseconds');
+            if ($contract->validUntil < $end || $contract->retention->compare($timeout) < 0) {
+                throw new InvalidConfigurationException(
+                    'newContext(): the replay contract ends before the deadline, so no retry could ever run. Make validFor and the retention longer than the timeout, for example the timeout plus one second.',
+                );
+            }
+        }
         if ($operationId === null) {
             $operationId = new OperationId(bin2hex(random_bytes(16)));
         } elseif (is_string($operationId)) {
@@ -103,7 +115,7 @@ final class CompiledPipeline
             $partition,
             Deadline::after($timeout, $this->environment->clock),
             $cancellation ?? new NeverCancelled(),
-            new OperationMetadata($safety ?? OperationSafety::unsafe(), $attributes ?? BoundedMetadata::empty()),
+            new OperationMetadata($safety, $attributes ?? BoundedMetadata::empty()),
             $fallback,
         );
     }

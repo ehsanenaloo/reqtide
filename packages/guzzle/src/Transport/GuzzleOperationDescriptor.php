@@ -46,7 +46,7 @@ final readonly class GuzzleOperationDescriptor
      * key of this process is used, so the fingerprint then only compares requests within one process. It describes the
      * request as given; {@see resolvedFor()} adds what the client defaults contribute.
      *
-     * @throws InvalidConfigurationException for a relative URI or an invalid group
+     * @throws InvalidConfigurationException for a relative URI, a scheme other than http or https, or an invalid group
      */
     public static function fromRequest(RequestInterface $request, string $operationGroup, OperationSafety $safety, #[\SensitiveParameter] ?string $credentialKey = null): self
     {
@@ -55,6 +55,11 @@ final readonly class GuzzleOperationDescriptor
         $host = strtolower($uri->getHost());
         if ($scheme === '' || $host === '') {
             throw new InvalidConfigurationException('The request URI must be absolute (scheme and host).');
+        }
+        if ($scheme !== 'http' && $scheme !== 'https') {
+            // The transport is HTTP only. This is not a destination filter: a caller that accepts URLs from users still
+            // has to decide which hosts may be reached.
+            throw new InvalidConfigurationException('The request URI must use http or https.');
         }
         $port = $uri->getPort() ?? ($scheme === 'https' ? 443 : 80);
 
@@ -72,14 +77,15 @@ final readonly class GuzzleOperationDescriptor
      * `headers`, `auth` and `proxy` are applied the way Guzzle applies them.
      *
      * @param array<string, mixed> $clientDefaults
+     * @param list<string> $credentialHeaders
      */
-    public function resolvedFor(RequestInterface $request, array $clientDefaults, #[\SensitiveParameter] ?string $credentialKey): self
+    public function resolvedFor(RequestInterface $request, array $clientDefaults, #[\SensitiveParameter] ?string $credentialKey, array $credentialHeaders = []): self
     {
         return new self(
             $this->normalizedMethod,
             $this->originFingerprint,
             $this->operationGroup,
-            self::fingerprint(EffectiveCredentials::material($request, $clientDefaults), $credentialKey),
+            self::fingerprint(EffectiveCredentials::material($request, $clientDefaults, $credentialHeaders), $credentialKey),
             $this->safety,
         );
     }

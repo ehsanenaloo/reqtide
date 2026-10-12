@@ -232,16 +232,17 @@ final class RedisDamagedStateTest extends TestCase
         $maintenance = new RedisRegistryMaintenance($this->harness()->options(), $registry);
         $first = $maintenance->step();
         self::assertSame(1, $first['partitions'], 'the cooldown that ended leaves although damaged members come first');
-        $maintenance->step();
+        self::assertSame(2, $first['damaged'], 'both damaged members are reported to the operator');
+        self::assertSame(0, $maintenance->step()['damaged'], 'a deferred member is not reported again in the same retention');
 
         self::assertGreaterThan(0.0, (float) $client->zscore($index, $notAHash));
         self::assertGreaterThan(0.0, (float) $client->zscore($index, $halfHash));
         self::assertSame('x', $client->get($notAHash), 'a damaged partition is not deleted or repaired');
         self::assertSame([0, 0], $this->counted($registry));
 
-        // A deferred member comes up again later and is deferred again without a failure.
+        // A deferred member comes up again later, is deferred again without a failure and is reported again.
         $this->harness()->time()->advance(200 * self::SECOND);
-        $maintenance->step();
+        self::assertSame(2, $maintenance->step()['damaged']);
     }
 
     public function testADamagedIndexMemberDoesNotStopReclamationAtThePartitionCeiling(): void

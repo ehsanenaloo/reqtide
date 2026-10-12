@@ -368,7 +368,9 @@ final class MemoryCircuitHardeningTest extends TestCase
         $rig = new CircuitRig(maxRecords: 32);
         $p = CircuitRig::countPolicy(identity: CircuitRig::identity('p'));
         $q = CircuitRig::countPolicy(identity: CircuitRig::identity('q'));
+        // Two filler partitions: one partition may hold at most three quarters of the ceiling in active permits.
         $filler = CircuitRig::countPolicy(leaseSeconds: 1_000, identity: CircuitRig::identity('filler'));
+        $filler2 = CircuitRig::countPolicy(leaseSeconds: 1_000, identity: CircuitRig::identity('filler-2'));
 
         $rig->at(100 * self::SECOND);
         $p1 = $rig->permit($p);
@@ -380,7 +382,7 @@ final class MemoryCircuitHardeningTest extends TestCase
         $p2 = $rig->permit($p);
         $rig->record($p, $p2, CircuitVerdict::Success);
         for ($i = 0; $i < 29; ++$i) {
-            $rig->permit($filler);
+            $rig->permit($i % 2 === 0 ? $filler : $filler2);
         }
         // 32 records: three tombstones and 29 active owners. The next allocation must evict two tombstones.
         $rig->permit($filler);

@@ -25,6 +25,12 @@ local rt_cc = {}
 do
     local DRAIN_BATCH = 128
     local EVICTION_BATCH_MAX = 64
+    -- Queue entries one eviction may examine, removed or not: a long run of stale entries costs a bounded amount of
+    -- work per script and is worked off by the following calls and by maintenance.
+    local EVICTION_EXAMINE_MAX = 256
+    -- Lease candidates one call reads from the index of a partition.
+    local EXPIRE_BATCH = 128
+    rt_cc.EXPIRE_BATCH = EXPIRE_BATCH
     rt_cc.DRAIN_BATCH = DRAIN_BATCH
 
     local function field(prefix, owner)
@@ -81,17 +87,19 @@ do
         return rt_state.pair_read(redis.call('HGET', state.key, field('t', owner)))
     end
 
-    -- Removes every active owner of the partition whose lease has been reached (neutral: no outcome is recorded).
-    -- Returns the number removed. Cost is proportional to the owners removed plus the owners sharing the current second.
-    -- A lease whose record is malformed is left as it is: it is not counted as expired and it cannot stop the others, so
-    -- this function never raises after it has removed something.
+    -- Removes active owners of the partition whose lease has been reached (neutral: no outcome is recorded), reading at
+    -- most EXPIRE_BATCH candidates from the index, oldest first. Returns the number removed. An expired lease that is not
+    -- read in this call still counts as active, so a partial reclaim can only refuse an owner, never admit one too many.
+    -- A lease whose record is malformed is left as it is and is not counted as expired; its index score moves to the next
+    -- second so it cannot take the batch of every later call, and this function never raises after it has removed
+    -- something.
     function rt_cc.expire_actives(meta, state, akey, now_s, now_u)
-        local candidates = redis.call('ZRANGEBYSCORE', akey, '-inf', exact_int.format_int(now_s))
+        local candidates = redis.call('ZRANGEBYSCORE', akey, '-inf', exact_int.format_int(now_s), 'LIMIT', 0, EXPIRE_BATCH)
         local removed = 0
         for _, owner in ipairs(candidates) do
             local readable, xs, xu = pcall(rt_cc.active_expiry, state, owner)
             if not readable then
-                -- Left in place.
+                redis.call('ZADD', akey, exact_int.format_int(now_s + 1), owner)
             elseif xs == nil then
                 redis.call('ZREM', akey, owner)
             elseif rt_state.reached(xs, xu, now_s, now_u) then
@@ -185,18 +193,21 @@ do
         return consumed
     end
 
-    -- Evicts the oldest tombstones whether expired or not, until `needed` returns true or the batch
-    -- (max(1, min(64, max_records / 16))) is used. Active owners are never touched. A malformed entry is removed and
-    -- uses one place of the batch.
+    -- Evicts the oldest tombstones whether expired or not, until `needed` returns true, the batch
+    -- (max(1, min(64, max_records / 16))) is used, or EVICTION_EXAMINE_MAX queue entries were examined. Active owners
+    -- are never touched. A malformed entry is removed and uses one place of the batch; a stale entry is removed and uses
+    -- only examination budget.
     function rt_cc.evict_tombstones(meta, current, qkey, needed)
         local batch = math.max(1, math.min(EVICTION_BATCH_MAX, math.floor(meta.max_records / 16)))
         local consumed = 0
-        while consumed < batch and not needed() do
+        local examined = 0
+        while consumed < batch and examined < EVICTION_EXAMINE_MAX and not needed() do
             local ds, du, pkey, owner = read_entry(qkey)
             if ds == nil then
                 break
             end
             redis.call('LPOP', qkey)
+            examined = examined + 1
             if ds == false or remove_tombstone(meta, current, ds, du, pkey, owner) then
                 consumed = consumed + 1
             end

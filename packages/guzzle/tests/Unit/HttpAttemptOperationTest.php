@@ -11,8 +11,10 @@ use Enaxon\Reqtide\Guzzle\BodyIntegrity;
 use Enaxon\Reqtide\Guzzle\HttpOperation;
 use Enaxon\Reqtide\Guzzle\Operation\HttpPreparedAttempt;
 use Enaxon\Reqtide\Guzzle\Tests\Support\CloseSpyStream;
+use Enaxon\Reqtide\Guzzle\Tests\Support\CountingStream;
 use Enaxon\Reqtide\Guzzle\Tests\Support\MutableBodyStream;
 use Enaxon\Reqtide\Guzzle\Tests\Support\NonSeekableStream;
+use Enaxon\Reqtide\Guzzle\Tests\Support\OverrunningStream;
 use Enaxon\Reqtide\Guzzle\Tests\Support\RewindRefusingStream;
 use Enaxon\Reqtide\Guzzle\Tests\Support\TellFailingStream;
 use Enaxon\Reqtide\Outcome\Outcome;
@@ -28,6 +30,7 @@ use GuzzleHttp\Psr7\PumpStream;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\Psr7\Utils;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -44,9 +47,13 @@ final class HttpAttemptOperationTest extends TestCase
     /** @var list<RequestInterface> */
     private array $sent = [];
 
+    /** @var list<string> the bytes each send read from its body */
+    private array $transmitted = [];
+
     protected function setUp(): void
     {
         $this->sent = [];
+        $this->transmitted = [];
     }
 
     private function context(): AttemptContext
@@ -65,10 +72,70 @@ final class HttpAttemptOperationTest extends TestCase
     private function sender(): \Closure
     {
         return function (RequestInterface $request): ResponseInterface {
+            $this->transmitted[] = self::transmit($request);
             $this->sent[] = $request;
 
             return new Response(200, [], 'ok');
         };
+    }
+
+    /**
+     * Reads the body the way the Guzzle cURL handler does: as one string below 1 MB, otherwise in chunks up to its size.
+     * Returns the bytes read.
+     */
+    private static function transmit(RequestInterface $request): string
+    {
+        $body = $request->getBody();
+        $size = $body->getSize();
+        if ($size !== null && $size < 1_000_000) {
+            return (string) $body;
+        }
+        if ($body->isSeekable()) {
+            $body->rewind();
+        }
+        $sent = '';
+        $remaining = $size ?? PHP_INT_MAX;
+        while ($remaining > 0 && !$body->eof()) {
+            $chunk = $body->read(min(65_536, $remaining));
+            if ($chunk === '') {
+                break;
+            }
+            $sent .= $chunk;
+            $remaining -= strlen($chunk);
+        }
+
+        return $sent;
+    }
+
+    /**
+     * One attempt as the pipeline runs it: prepare, final check, send.
+     *
+     * @param \Enaxon\Reqtide\Runtime\AttemptOperation<ResponseInterface> $attempt
+     */
+    private function attemptOnce(\Enaxon\Reqtide\Runtime\AttemptOperation $attempt): void
+    {
+        $prepared = $attempt->prepare($this->context());
+        $prepared->verifyReplay($this->context());
+        $prepared->invoke($this->context());
+    }
+
+    /**
+     * Prepares and checks an attempt and returns the reason it was refused.
+     *
+     * @param \Enaxon\Reqtide\Runtime\AttemptOperation<ResponseInterface> $attempt
+     */
+    private function refusalOf(\Enaxon\Reqtide\Runtime\AttemptOperation $attempt, ?\Closure $betweenPrepareAndCheck = null): string
+    {
+        try {
+            $prepared = $attempt->prepare($this->context());
+            if ($betweenPrepareAndCheck !== null) {
+                $betweenPrepareAndCheck();
+            }
+            $prepared->verifyReplay($this->context());
+        } catch (PreparationFailedException $e) {
+            return $e->preparationCause->getMessage();
+        }
+        self::fail('expected the attempt to be refused before it was sent');
     }
 
     private function post(StreamInterface|string $body, ?\Closure $factory = null, string $key = 'key-1', BodyIntegrity $integrity = BodyIntegrity::Verified, int $maxBytes = HttpOperation::DEFAULT_MAX_VERIFIED_BODY_BYTES): HttpOperation
@@ -157,7 +224,7 @@ final class HttpAttemptOperationTest extends TestCase
             $prepared->invoke($this->context());
         }
         self::assertSame(3, $created);
-        self::assertSame(['abcdef', 'abcdef', 'abcdef'], array_map(static fn(RequestInterface $r): string => (string) $r->getBody(), $this->sent));
+        self::assertSame(['abcdef', 'abcdef', 'abcdef'], $this->transmitted, 'each send read a fresh factory body');
     }
 
     public function testAFactoryThatReturnsTheSameUnrewindableStreamTwiceIsRefusedTheSecondTime(): void
@@ -265,14 +332,10 @@ final class HttpAttemptOperationTest extends TestCase
             return Utils::streamFor(array_shift($contents) ?? '');
         })->attemptOperation($this->sender());
 
-        $attempt->prepare($this->context());
-        try {
-            $attempt->prepare($this->context());
-            self::fail('expected the preparation to be refused');
-        } catch (PreparationFailedException $e) {
-            self::assertStringContainsString('content changed', $e->preparationCause->getMessage());
-        }
-        self::assertSame([], $this->sent);
+        $this->attemptOnce($attempt);
+
+        self::assertStringContainsString('content changed', $this->refusalOf($attempt));
+        self::assertCount(1, $this->sent, 'the retry with other bytes was never sent');
     }
 
     public function testABodyWithTheSameBytesIsAcceptedEveryTimeWhenTheContentIsVerified(): void
@@ -292,32 +355,145 @@ final class HttpAttemptOperationTest extends TestCase
     {
         $body = new MutableBodyStream('amount=100');
         $attempt = $this->post($body)->attemptOperation($this->sender());
-        $attempt->prepare($this->context());
+        $this->attemptOnce($attempt);
 
         $body->replace('amount=900');
 
-        try {
-            $attempt->prepare($this->context());
-            self::fail('expected the preparation to be refused');
-        } catch (PreparationFailedException $e) {
-            self::assertStringContainsString('content changed', $e->preparationCause->getMessage());
-        }
+        self::assertStringContainsString('content changed', $this->refusalOf($attempt));
+        self::assertCount(1, $this->sent);
     }
 
-    public function testTheFinalCheckCatchesABodyWhoseBytesChangedAfterPreparation(): void
+    public function testTheFinalCheckOfARetryCatchesBytesChangedAfterPreparation(): void
     {
         $body = new MutableBodyStream('amount=100');
-        $prepared = $this->post($body)->attemptOperation($this->sender())->prepare($this->context());
+        $attempt = $this->post($body)->attemptOperation($this->sender());
+        $this->attemptOnce($attempt);
 
+        $reason = $this->refusalOf($attempt, static function () use ($body): void {
+            $body->replace('amount=900');
+        });
+
+        self::assertStringContainsString('content changed', $reason);
+        self::assertCount(1, $this->sent);
+    }
+
+    public function testTheFinalCheckRefusesABodyThatGrewAfterPreparationWithoutReadingTheGrowth(): void
+    {
+        $body = new MutableBodyStream('amount=100');
+        $attempt = $this->post($body)->attemptOperation($this->sender());
+        $this->attemptOnce($attempt);
+
+        $reason = $this->refusalOf($attempt, static function () use ($body): void {
+            $body->replace(str_repeat('x', 5_000_000));
+        });
+
+        self::assertStringContainsString('content changed', $reason);
+        self::assertSame(0, $body->tell());
+        self::assertCount(1, $this->sent);
+    }
+
+    public function testABodyWhoseSizeIsStaleIsRefusedAtTheFirstExtraByteOfTheRetryCheck(): void
+    {
+        $body = new OverrunningStream(10, 2_000_000);
+        $attempt = $this->post($body)->attemptOperation($this->sender());
+        $this->attemptOnce($attempt);
+        $readBySend = $body->bytesRead;
+
+        self::assertStringContainsString('longer than its size', $this->refusalOf($attempt));
+        self::assertSame(11, $body->bytesRead - $readBySend, 'the check reads the size plus one byte, not the whole stream');
+    }
+
+    public function testTheFirstAttemptReadsTheBodyOnlyOnceAndThatReadIsTheSend(): void
+    {
+        $payload = str_repeat('0123456789', 200_000);
+        $body = new CountingStream(Utils::streamFor($payload));
+        $attempt = $this->post($body)->attemptOperation($this->sender());
+
+        $this->attemptOnce($attempt);
+
+        self::assertSame(strlen($payload), $body->bytesRead, 'no read before the send');
+    }
+
+    public function testARetryReadsTheBodyOnceAtItsFinalCheckBesideTheSend(): void
+    {
+        $payload = str_repeat('0123456789', 200_000);
+        $body = new CountingStream(Utils::streamFor($payload));
+        $attempt = $this->post($body)->attemptOperation($this->sender());
+        $this->attemptOnce($attempt);
+        $afterFirst = $body->bytesRead;
+
+        $this->attemptOnce($attempt);
+
+        self::assertSame(2 * strlen($payload), $body->bytesRead - $afterFirst, 'one read at the final check and one by the send');
+        self::assertCount(2, $this->sent);
+    }
+
+    public function testWhenTheFirstSendDidNotReadTheWholeBodyTheRetryTakesTheReference(): void
+    {
+        $body = new MutableBodyStream('amount=100');
+        $calls = 0;
+        $sender = function (RequestInterface $request) use (&$calls): ResponseInterface {
+            if (++$calls > 1) {
+                self::transmit($request);
+            }
+            $this->sent[] = $request;
+
+            return new Response(503);
+        };
+        $attempt = $this->post($body)->attemptOperation($sender);
+        $this->attemptOnce($attempt);
+
+        $this->attemptOnce($attempt);
+        $body->replace('amount=900');
+
+        self::assertStringContainsString('content changed', $this->refusalOf($attempt));
+        self::assertCount(2, $this->sent);
+    }
+
+    public function testABodyChangedAfterTheFinalCheckOfARetryIsStoppedBeforeItIsSent(): void
+    {
+        $body = new MutableBodyStream('amount=100');
+        $attempt = $this->post($body)->attemptOperation($this->sender());
+        $this->attemptOnce($attempt);
+
+        $prepared = $attempt->prepare($this->context());
+        $prepared->verifyReplay($this->context());
         $body->replace('amount=900');
 
         try {
-            $prepared->verifyReplay($this->context());
-            self::fail('expected the final check to refuse');
-        } catch (PreparationFailedException $e) {
-            self::assertStringContainsString('content changed', $e->preparationCause->getMessage());
+            $prepared->invoke($this->context());
+            self::fail('expected the send to be stopped');
+        } catch (\RuntimeException $stopped) {
+            self::assertStringContainsString('changed after its final check', $stopped->getMessage());
         }
-        self::assertSame([], $this->sent);
+        self::assertCount(1, $this->sent, 'the changed body was never handed over');
+    }
+
+    public function testALargeBodyChangedAfterTheFinalCheckOfARetryIsStoppedAtItsLastChunk(): void
+    {
+        $payload = str_repeat('a', 1_200_000);
+        $body = new MutableBodyStream($payload);
+        $attempt = $this->post($body)->attemptOperation($this->sender());
+        $this->attemptOnce($attempt);
+
+        $prepared = $attempt->prepare($this->context());
+        $prepared->verifyReplay($this->context());
+        $body->replace(str_repeat('a', 1_199_999) . 'b');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('changed after its final check');
+        $prepared->invoke($this->context());
+    }
+
+    public function testAnUnchangedRetryIsSentWhole(): void
+    {
+        $body = new MutableBodyStream('amount=100');
+        $attempt = $this->post($body)->attemptOperation($this->sender());
+
+        $this->attemptOnce($attempt);
+        $this->attemptOnce($attempt);
+
+        self::assertSame(['amount=100', 'amount=100'], $this->transmitted);
     }
 
     public function testTheBytesAreTheCallersResponsibilityWhenTheCallerAssertsThem(): void
@@ -359,6 +535,63 @@ final class HttpAttemptOperationTest extends TestCase
 
         $prepared->verifyReplay($this->context());
         self::assertSame(0, $body->tell());
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function wrongLengths(): iterable
+    {
+        yield 'too small' => ['abcdef', '3'];
+        yield 'too large' => ['abcdef', '999'];
+        yield 'not a number' => ['abcdef', 'abc'];
+        yield 'two values' => ['abcdef', '6, 6'];
+        yield 'empty body with a length' => ['', '5'];
+    }
+
+    #[DataProvider('wrongLengths')]
+    public function testADeclaredContentLengthMustMatchADirectBody(string $body, string $length): void
+    {
+        $operation = HttpOperation::idempotentMutation(
+            new Request('POST', self::URL, ['Idempotency-Key' => 'key-1', 'Content-Length' => $length], $body),
+            'items.create',
+            'key-1',
+            'account and endpoint',
+            'returns the stored response',
+            Duration::seconds(60),
+        );
+
+        $this->assertRefused($operation, 'Content-Length');
+    }
+
+    #[DataProvider('wrongLengths')]
+    public function testADeclaredContentLengthMustMatchAFactoryBody(string $body, string $length): void
+    {
+        $operation = HttpOperation::idempotentMutation(
+            new Request('POST', self::URL, ['Idempotency-Key' => 'key-1', 'Content-Length' => $length], 'x'),
+            'items.create',
+            'key-1',
+            'account and endpoint',
+            'returns the stored response',
+            Duration::seconds(60),
+            bodyFactory: static fn(): StreamInterface => Utils::streamFor($body),
+        );
+
+        $this->assertRefused($operation, 'Content-Length');
+    }
+
+    public function testAMatchingContentLengthIsAcceptedOnBothPaths(): void
+    {
+        foreach ([null, static fn(): StreamInterface => Utils::streamFor('abcdef')] as $factory) {
+            HttpOperation::idempotentMutation(
+                new Request('POST', self::URL, ['Idempotency-Key' => 'key-1', 'Content-Length' => '6'], 'abcdef'),
+                'items.create',
+                'key-1',
+                's',
+                'd',
+                Duration::seconds(60),
+                bodyFactory: $factory,
+            )->attemptOperation($this->sender())->prepare($this->context());
+        }
+        self::assertSame([], $this->sent);
     }
 
     public function testTheStatedIdentityMustBePresentOnEveryAttempt(): void

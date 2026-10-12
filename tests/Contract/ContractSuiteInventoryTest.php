@@ -20,7 +20,7 @@ final class ContractSuiteInventoryTest extends TestCase
         ConcurrencyBackendContract::class => 17,
         RateLimitBackendContract::class => 20,
         RetryBudgetBackendContract::class => 20,
-        CircuitBackendContract::class => 27,
+        CircuitBackendContract::class => 28,
     ];
 
     public function testEverySuiteKeepsItsPinnedNumberOfTests(): void

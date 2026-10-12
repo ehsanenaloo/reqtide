@@ -151,6 +151,7 @@ final class OperationRun
                     /** @var AttemptRecord<T> $record */
                     $record = $result->dispatchedRecord;
                     $this->attempts[] = $record;
+                    $this->discardPrevious();
                 }
                 if (self::isAdmissionRefusal($result->termination)) {
                     return $this->finishRefusal($result->termination);
@@ -166,6 +167,7 @@ final class OperationRun
             }
 
             $this->attempts[] = $settled->record;
+            $this->discardPrevious();
             $this->pendingDiscard = $settled;
 
             if ($settled->override === SettlementOverride::Cancelled) {
@@ -338,12 +340,12 @@ final class OperationRun
             if ($number > 1) {
                 $this->requireAllowance($remaining);
                 $this->commitRetry($held);
-                // The commit may call a backend: the last check before dispatch follows it. The disposal of the
-                // previous outcome comes after it, because the terminal outcome is never discarded.
+                // The commit may call a backend: the last check before dispatch follows it. Nothing else runs
+                // before the dispatch; the outcome this retry replaces is disposed in run() once the retry was
+                // dispatched, so a refused or never-started retry leaves it open as the terminal outcome.
                 $remaining = $this->checkpointRemaining();
                 $this->requireAllowance($remaining);
             }
-            $this->discardPrevious();
 
             // Stage 8/9: dispatch and settlement observation.
             $phase = Stage::Dispatch;
@@ -910,7 +912,11 @@ final class OperationRun
         return AttemptResult::failedAfterDispatch($record, $failure);
     }
 
-    /** Stage 4 of finalization: dispose only an outcome that a dispatched retry actually replaces. */
+    /**
+     * Stage 4 of finalization: dispose only an outcome that a dispatched retry actually replaced. It runs after that
+     * retry was dispatched (settled or failed in the runtime), never between the last check and the dispatch, and never
+     * for a retry that was refused or did not start.
+     */
     private function discardPrevious(): void
     {
         $previous = $this->pendingDiscard;

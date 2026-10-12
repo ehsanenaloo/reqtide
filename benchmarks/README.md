@@ -63,3 +63,5 @@ On Git Bash for Windows, prefix with `MSYS_NO_PATHCONV=1`. `build/` is git-ignor
 | `scenarios.php` | Scenario definitions (pipelines and per-operation closures). |
 | `bench.php` | Runs one scenario in this process and writes its raw samples. |
 | `run-all.php` | Starts one fresh process per scenario and repeat, adds environment info, writes one JSON file. |
+| `body-digest.php` | Times one body digest of the Guzzle adapter (`BodyIntegrity::Verified`) for 0 B to 16 MiB in memory and temporary-file streams. |
+| `redis-cleanup-bench.php` | Times the bounded cleanup paths of the Redis backends (stale queue prefix, mass lease expiry, maintenance, saturated registry) and the ACL preflight, with the server's own slow-log durations. |

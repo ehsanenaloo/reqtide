@@ -151,6 +151,9 @@ final class MemoryCircuitBackend implements CircuitBackend
 
         // From here the call admits: a Closed sample, a probe in HalfOpen, or the Open -> HalfOpen transition plus a probe.
         $expiresAt = self::add($now, $policy->permitLease->nanoseconds);
+        if ($part !== null && $part->phase === CircuitPartition::CLOSED && count($part->owners) >= self::partitionPermitCap($this->maxRecords)) {
+            throw new StateCapacityExceededException('The circuit partition holds the most active permits one partition may hold.');
+        }
         $this->ensureRecordRoom();
         if ($part === null) {
             $this->ensurePartitionRoom();
@@ -518,6 +521,15 @@ final class MemoryCircuitBackend implements CircuitBackend
             $this->keyIndex[$last] = $index;
         }
         unset($this->keyIndex[$key], $this->partitions[$key]);
+    }
+
+    /**
+     * Active permits one partition may hold: the record ceiling minus a quarter of it, so a slow dependency with many
+     * calls in flight cannot take the records every other circuit needs. The Redis backend uses the same rule.
+     */
+    public static function partitionPermitCap(int $maxRecords): int
+    {
+        return max(1, $maxRecords - intdiv($maxRecords, 4));
     }
 
     private function ensureRecordRoom(): void

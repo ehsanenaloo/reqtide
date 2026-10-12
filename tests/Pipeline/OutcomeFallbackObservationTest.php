@@ -233,8 +233,8 @@ final class OutcomeFallbackObservationTest extends TestCase
         self::assertSame(OutcomeKind::Exception, $operation->discarded[0]->kind);
         self::assertSame($completion->attempts[0]->outcome, $operation->discarded[0]);
         $log = $h->log;
-        self::assertGreaterThan($log->indexOf('budget.commit'), $log->indexOf('discard'));
-        self::assertLessThan($log->entries === [] ? 0 : (int) array_keys($log->entries, 'dispatch', true)[1], $log->indexOf('discard'));
+        // The replaced outcome is disposed once the retry was dispatched, so nothing runs between the last check and the dispatch.
+        self::assertGreaterThan((int) array_keys($log->entries, 'dispatch', true)[1], $log->indexOf('discard'));
     }
 
     public function testTheTerminalOutcomeIsNeverDiscarded(): void

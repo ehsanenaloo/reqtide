@@ -40,13 +40,20 @@ final readonly class GuzzleConfiguration
      * @param ?HttpOutcomeClassifier $classifier the statuses and cURL errors that are retried, count against a circuit, fall back or set a cooldown; the documented starter set when null
      * @param array<string, mixed> $clientDefaults
      * @param UriInterface|string|null $baseUri an absolute http or https URI that {@see ReqtideClient::uri()} resolves references against
+     * @param list<string> $credentialHeaders names of headers that carry a credential besides Authorization and Proxy-Authorization (for example `X-Api-Key`); they become part of the credential fingerprint, never of any output
      * @throws InvalidConfigurationException
      */
     public function __construct(
         ?HttpOutcomeClassifier $classifier = null,
         public array $clientDefaults = [],
         UriInterface|string|null $baseUri = null,
+        public array $credentialHeaders = [],
     ) {
+        foreach ($credentialHeaders as $name) {
+            if (!is_string($name) || preg_match('~^[A-Za-z0-9-]{1,64}\z~', $name) !== 1) {
+                throw new InvalidConfigurationException('A credential header must be a header name of at most 64 letters, digits and hyphens.');
+            }
+        }
         if (array_key_exists('handler', $clientDefaults)) {
             throw new InvalidConfigurationException('The handler is owned by the client; remove "handler" from the client defaults.');
         }

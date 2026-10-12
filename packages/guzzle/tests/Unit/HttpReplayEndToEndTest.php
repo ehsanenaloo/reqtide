@@ -204,6 +204,36 @@ final class HttpReplayEndToEndTest extends TestCase
         self::assertInstanceOf(PreparationFailedException::class, $completion->policyCause);
     }
 
+    public function testABodyChangedBetweenTheFinalCheckAndTheSendNeverReachesTheServer(): void
+    {
+        $body = new MutableBodyStream('amount=100');
+        $operation = HttpOperation::idempotentMutation(
+            new Request('POST', self::$server->baseUri . '/status/503', ['Idempotency-Key' => 'key-6'], $body),
+            'fixture.create',
+            'key-6',
+            's',
+            'd',
+            Duration::seconds(60),
+            retryableOutcomeCodes: self::codes(),
+        );
+        $send = $this->transfer();
+        $calls = 0;
+
+        // The second send changes the body after the pipeline's final check, as a callback of the promise queue could.
+        $completion = $this->runDetailed($operation, static function (RequestInterface $request) use ($send, $body, &$calls): ResponseInterface {
+            if (++$calls === 2) {
+                $body->replace('amount=900');
+            }
+
+            return $send($request);
+        });
+
+        $log = self::$server->log();
+        self::assertCount(1, $log, 'only the first attempt reached the server');
+        self::assertSame(sha1('amount=100'), $log[0]['bodySha1']);
+        self::assertCount(2, $completion->attempts, 'the stopped send counts as a dispatched attempt with its exception');
+    }
+
     public function testABodyWithOtherBytesIsSentWhenTheCallerAssertsTheContent(): void
     {
         $body = new MutableBodyStream('amount=100');

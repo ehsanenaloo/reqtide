@@ -303,7 +303,8 @@ do
         local idle_s, idle_u = rt_time.add_micros(state.ls_s, state.ls_u, RETENTION_SECONDS * MICROS)
         local p = rt_rate.params(state.kind, state.capacity, state.a, state.b)
         -- Not idle for the retention yet: the examination second (whole seconds) has come but the last fraction of
-        -- the retention has not. The score stays, so it is a candidate again within a second.
+        -- the retention has not. The score stays, so it is a candidate again within a second and a partition at the
+        -- ceiling is reclaimed at its exact instant.
         if not rt_state.reached(idle_s, idle_u, es, eu) then
             return 0
         end
@@ -402,22 +403,25 @@ do
         return reclaim_rate_partition(meta, xkey, member, es, eu)
     end
 
-    -- Returns the number of partitions removed and the number of candidates examined (a full batch means more may wait).
+    -- Returns the number of partitions removed, the number of candidates examined (a full batch means more may wait) and
+    -- the number of candidates that could not be read (damaged; deferred one retention, never deleted or repaired).
     -- A candidate that cannot be read (a damaged partition or a member that is not a partition) is not an error of the
     -- caller: it is moved behind the other candidates, so it cannot hold up the batch or stop the call, and the counters
     -- stay in step with what was deleted.
     function rt_rate.reclaim(meta, xkey, qkey, es, eu)
         local candidates = redis.call('ZRANGEBYSCORE', xkey, '-inf', exact_int.format_int(es), 'LIMIT', 0, RECLAIM_BATCH)
         local removed = 0
+        local damaged = 0
         for _, member in ipairs(candidates) do
             local ok, count = pcall(reclaim_member, meta, xkey, qkey, member, es, eu)
             if ok then
                 removed = removed + count
             else
+                damaged = damaged + 1
                 redis.call('ZADD', xkey, exact_int.format_int(es + RETENTION_SECONDS), member)
             end
         end
-        return removed, #candidates
+        return removed, #candidates, damaged
     end
 
     -- Records that maintenance may look at the partition after its retention.

@@ -98,6 +98,12 @@ if not has_record_room() then
     write_back()
     error(redis.error_reply('RT_CAPACITY the state registry is at capacity; new allocation rejected'), 0)
 end
+-- One partition may hold active permits up to the record ceiling minus a quarter of it, so a slow dependency with many
+-- calls in flight cannot take the records every other circuit needs (the same rule as the process-local backend).
+if state ~= nil and state.ph == rt_cb.CLOSED and state.na >= math.max(1, meta.max_records - math.floor(meta.max_records / 4)) then
+    write_back()
+    error(redis.error_reply('RT_CAPACITY the circuit partition holds the most active permits one partition may hold'), 0)
+end
 if state == nil and meta.partitions >= meta.max_partitions then
     rt_rate.reclaim(meta, xkey, qkey, es, eu)
     if meta.partitions >= meta.max_partitions then

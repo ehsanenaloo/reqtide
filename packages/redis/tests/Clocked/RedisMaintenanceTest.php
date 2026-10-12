@@ -187,11 +187,96 @@ final class RedisMaintenanceTest extends TestCase
         self::assertSame([0, 0], $this->counters($registry));
     }
 
+    public function testCandidatesDueOnlyByTheirSecondDoNotMakeEveryStepRepeatTheSameBatch(): void
+    {
+        $registry = $this->harness()->registry();
+        $backend = new RedisCooldownBackend($this->harness()->options(), $registry);
+        $this->harness()->time()->moveTo(100 * self::SECOND + self::SECOND / 2);
+        for ($i = 0; $i < 130; ++$i) {
+            $backend->extend($this->cool('c' . $i), Duration::seconds(5), $this->ids()->command());
+        }
+
+        // Removal is due at 165.5 s: the index second 165 has come, the last half second has not.
+        $this->harness()->time()->moveTo(165 * self::SECOND + 400_000_000);
+        $maintenance = $this->maintenance($registry);
+        $first = $maintenance->step();
+        self::assertSame(0, $first['partitions']);
+        self::assertFalse($first['more'], 'a full batch without progress does not ask for another step in the same second');
+        self::assertSame([130, 130], $this->counters($registry));
+
+        $this->harness()->time()->moveTo(165 * self::SECOND + 500_000_000);
+        $second = $maintenance->step();
+        self::assertSame(128, $second['partitions'], 'removed at their exact instant, not a second later');
+        self::assertTrue($second['more']);
+        $third = $maintenance->step();
+        self::assertSame(2, $third['partitions']);
+        self::assertFalse($third['more']);
+        self::assertSame([0, 0], $this->counters($registry));
+    }
+
+    public function testEvictionExaminesABoundedNumberOfStaleQueueEntriesPerCall(): void
+    {
+        $registry = $this->harness()->registry(maxPartitions: 10, maxRecords: 16);
+        $backend = new RedisConcurrencyBackend($this->harness()->options(), $registry);
+        $policy = $this->lease('a', 16);
+        for ($i = 0; $i < 16; ++$i) {
+            $permit = $this->acquire($backend, $policy);
+            self::assertSame(FinalizationStatus::Applied, $backend->release($policy, $permit, $this->ids()->command())->status);
+        }
+        self::assertSame([1, 16], $this->counters($registry), 'sixteen tombstones fill the record ceiling');
+
+        // Well-formed entries that name a partition which no longer exists: each one is work, none frees a record.
+        $queue = $registry->keys()->tombstoneQueue();
+        $gone = $registry->keys()->prefix . ':gone';
+        $stale = [];
+        for ($i = 0; $i < 1000; ++$i) {
+            $stale[] = '100 0 ' . $gone . ' ' . str_pad(dechex($i), 32, '0', STR_PAD_LEFT);
+        }
+        $client = $this->harness()->client();
+        $client->lpush($queue, $stale);
+        $before = (int) $client->llen($queue);
+
+        $refusals = 0;
+        while (true) {
+            $length = (int) $client->llen($queue);
+            try {
+                $this->acquire($backend, $this->lease('b'));
+                break;
+            } catch (StateCapacityExceededException) {
+                ++$refusals;
+                self::assertSame(128 + 256, $length - (int) $client->llen($queue), 'one call drains at most 128 expired entries and examines at most 256 more for eviction');
+            }
+            self::assertLessThan(10, $refusals, 'every call makes progress');
+        }
+
+        self::assertSame(2, $refusals);
+        self::assertSame($before - 1001, (int) $client->llen($queue), 'all stale entries and one real tombstone left the queue');
+        self::assertSame([2, 16], $this->counters($registry), 'one tombstone made room for the new owner');
+    }
+
+    public function testExpiredLeasesAreReclaimedInBoundedBatches(): void
+    {
+        $registry = $this->harness()->registry();
+        $backend = new RedisConcurrencyBackend($this->harness()->options(), $registry);
+        $policy = $this->lease('wide', 300);
+        for ($i = 0; $i < 300; ++$i) {
+            $this->acquire($backend, $policy);
+        }
+        self::assertSame([1, 300], $this->counters($registry));
+
+        $this->harness()->time()->advance(10 * self::SECOND);
+        $this->acquire($backend, $policy);
+        self::assertSame([1, 300 - 128 + 1], $this->counters($registry), 'one call reclaims at most 128 expired leases');
+
+        $this->acquire($backend, $policy);
+        self::assertSame([1, 300 - 256 + 2], $this->counters($registry));
+    }
+
     public function testAnEmptyRegistryHasNothingToDo(): void
     {
         $registry = $this->harness()->registry();
         $step = $this->maintenance($registry)->step();
-        self::assertSame(['terminalRecords' => 0, 'partitions' => 0, 'more' => false], $step);
+        self::assertSame(['terminalRecords' => 0, 'partitions' => 0, 'more' => false, 'damaged' => 0], $step);
     }
 
     public function testAnExpiredLeaseElsewhereFreesTheRecordCeilingForANewOwner(): void

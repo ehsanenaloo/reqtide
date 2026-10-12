@@ -116,4 +116,36 @@ final class RetryAfterTest extends TestCase
         // 1 Jan 1977 was a Saturday, so the weekday "Friday" does not match the date and the line is rejected.
         self::assertNull(RetryAfter::read(['Friday, 01-Jan-77 00:00:00 GMT'], $now)->delay);
     }
+
+    /** The obsolete RFC 850 form of an instant, with a two-digit year. */
+    private static function rfc850(string $instant): string
+    {
+        return (new \DateTimeImmutable($instant))->setTimezone(new \DateTimeZone('UTC'))->format('l, d-M-y H:i:s') . ' GMT';
+    }
+
+    /** @return iterable<string, array{string, string}> now and the instant the header means; the expected delay follows from the two */
+    public static function twoDigitYears(): iterable
+    {
+        yield 'late in a century, a small year is the next century' => ['2099-06-01T00:00:00Z', '2105-06-05T12:00:00Z'];
+        yield 'more than 50 years ahead in this century is the last one' => ['2026-06-01T00:00:00Z', '1977-03-04T00:00:00Z'];
+        yield 'exactly 50 years ahead stays ahead' => ['2026-06-01T00:00:00Z', '2076-06-01T00:00:00Z'];
+        yield 'one second more than 50 years ahead is the past' => ['2026-06-01T00:00:00Z', '1976-06-01T00:00:01Z'];
+        yield 'early in a century, a large year is the last century' => ['2003-01-01T00:00:00Z', '1999-12-31T23:59:59Z'];
+    }
+
+    #[DataProvider('twoDigitYears')]
+    public function testATwoDigitYearIsTheLatestYearNotMoreThanFiftyYearsAhead(string $now, string $meant): void
+    {
+        $now = new \DateTimeImmutable($now);
+        $reading = RetryAfter::read([self::rfc850($meant)], $now);
+        $expected = (new \DateTimeImmutable($meant))->getTimestamp() - $now->getTimestamp();
+
+        self::assertSame(1, $reading->validLines);
+        if ($expected <= 0) {
+            self::assertSame(0, $reading->delay?->ceilMicroseconds(), 'an instant in the past is no delay');
+
+            return;
+        }
+        self::assertSame($expected * 1_000_000, $reading->delay?->ceilMicroseconds());
+    }
 }

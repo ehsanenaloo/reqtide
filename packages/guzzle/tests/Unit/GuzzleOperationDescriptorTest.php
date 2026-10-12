@@ -94,6 +94,22 @@ final class GuzzleOperationDescriptorTest extends TestCase
         $this->descriptor(new Request('GET', 'https://api.example.com/'), $group);
     }
 
+    /** @return iterable<string, array{string}> */
+    public static function otherSchemes(): iterable
+    {
+        foreach (['ftp://127.0.0.1/x', 'gopher://127.0.0.1/x', 'ws://api.example.com/x', 'ldap://api.example.com/x', 'dict://api.example.com/x'] as $uri) {
+            yield $uri => [$uri];
+        }
+    }
+
+    #[DataProvider('otherSchemes')]
+    public function testOnlyHttpAndHttpsAreAccepted(string $uri): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('http or https');
+        $this->descriptor(new Request('GET', $uri));
+    }
+
     public function testARelativeUriIsRefused(): void
     {
         $this->expectException(InvalidConfigurationException::class);

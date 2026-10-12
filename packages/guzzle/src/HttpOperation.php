@@ -89,7 +89,8 @@ final readonly class HttpOperation
     public function forClient(GuzzleConfiguration $configuration): self
     {
         $defaults = $configuration->clientDefaults;
-        if (!array_key_exists('headers', $defaults) && !array_key_exists('auth', $defaults) && !array_key_exists('proxy', $defaults)) {
+        $relevant = array_intersect_key($defaults, ['headers' => true, 'auth' => true, 'proxy' => true, 'cert' => true, 'ssl_key' => true]);
+        if ($relevant === [] && $configuration->credentialHeaders === []) {
             return $this;
         }
         $auth = $defaults['auth'] ?? null;
@@ -100,7 +101,7 @@ final readonly class HttpOperation
 
         return new self(
             $this->request,
-            $this->descriptor->resolvedFor($this->request, $defaults, $this->credentialKey),
+            $this->descriptor->resolvedFor($this->request, $defaults, $this->credentialKey, $configuration->credentialHeaders),
             $this->bodyFactory,
             $this->identityHeader,
             $this->bodyIntegrity,
@@ -112,7 +113,7 @@ final readonly class HttpOperation
     /**
      * A safe read (GET or HEAD) that may be repeated.
      *
-     * @param Duration $validFor how long the statement holds, counted from now; it must be at least as long as the deadline of the operation
+     * @param Duration $validFor how long the statement holds, counted from now; it must be longer than the timeout given to send(), because the statement starts before the deadline (add a margin, for example one second); otherwise a retrying client refuses the operation with InvalidConfigurationException
      * @param ?\Closure(): StreamInterface $bodyFactory fresh body per attempt, for a request with a body that cannot be rewound
      * @param BodyIntegrity $bodyIntegrity whether the content of a replayed body is verified (the default) or the caller asserts it stays the same
      * @param int $maxVerifiedBodyBytes the longest body whose content is verified; a longer body is refused unless the integrity is `CallerAsserted`
@@ -160,7 +161,7 @@ final readonly class HttpOperation
      * @param string $identityValue the provider-enforced identity, for example the idempotency key; kept the same across attempts
      * @param string $identityScope what the identity is unique within (for example "account and endpoint")
      * @param string $duplicateHandling how the provider treats a repeat (for example "returns the stored response for 24 h")
-     * @param Duration $validFor how long the statement holds, counted from now; it must be at least as long as the deadline of the operation
+     * @param Duration $validFor how long the statement holds, counted from now; it must be longer than the timeout given to send(), because the statement starts before the deadline (add a margin, for example one second); otherwise a retrying client refuses the operation with InvalidConfigurationException
      * @param ?Duration $retention how long the provider keeps the identity; defaults to `$validFor`
      * @param ?string $identityHeader header that carries the identity; checked on every attempt. Null when the identity travels elsewhere (then the caller guarantees it is the same)
      * @param ?\Closure(): StreamInterface $bodyFactory fresh body per attempt, for a body that cannot be rewound

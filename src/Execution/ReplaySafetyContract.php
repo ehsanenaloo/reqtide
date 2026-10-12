@@ -26,9 +26,11 @@ final readonly class ReplaySafetyContract
      * - `$operationName` is a short bounded label for logs (printable ASCII, at most 128 bytes). It is not an
      *   idempotency key. Never put a URL with credentials, a token or personal data in it.
      * - `$validFor` is how long the assertion holds, counted from now. It becomes both the contract validity and
-     *   the retention, so it must be at least as long as the deadline of any operation using the contract;
-     *   otherwise the pipeline records `replay_horizon_inadequate` and does not retry. Create the contract per
-     *   operation, next to the context.
+     *   the retention, so it must be longer than the timeout of any operation using the contract: the contract
+     *   starts before the context, so a `$validFor` equal to the timeout ends a moment before the deadline. Then
+     *   `CompiledPipeline::newContext()` of a retrying pipeline throws `InvalidConfigurationException`; a context built
+     *   by hand runs once and records `replay_horizon_inadequate`. Add a margin, for example the timeout plus one
+     *   second, and create the contract per operation, next to the context.
      * - `$clock` must be the pipeline's own Clock (the contract is checked against its wall time). Omit it for
      *   `SystemClock`, which is what `InMemoryEnvironment` uses; pass the `VirtualClock` in tests, otherwise the
      *   pipeline sees a contract from the future or the past and does not retry (`replay_contract_not_valid`).

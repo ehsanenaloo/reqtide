@@ -33,7 +33,7 @@ final class HttpPreparedAttempt implements PreparedAttempt
      * @param \Closure(RequestInterface, AttemptContext, ?AttemptControls, bool): ResponseInterface $send
      * @param ?\Closure(RequestInterface, AttemptContext, ?AttemptControls, bool): PromiseInterface $startAsync
      */
-    public function __construct(private readonly HttpOperation $operation, private readonly RequestInterface $request, private readonly \Closure $send, private readonly ?\Closure $startAsync = null, private readonly ?string $bodyDigest = null) {}
+    public function __construct(private readonly HttpOperation $operation, private readonly RequestInterface $request, private readonly \Closure $send, private readonly ?\Closure $startAsync = null, private readonly ?BodyReference $reference = null, private readonly ?int $verifiedSize = null) {}
 
     /** Called by the runtime adapter, which alone receives the clock and deadline of the attempt. */
     public function bindControls(AttemptControls $controls): void
@@ -56,8 +56,22 @@ final class HttpPreparedAttempt implements PreparedAttempt
         if ($moved) {
             throw HttpAttemptOperation::refuse('the body is no longer at its start');
         }
-        if ($this->bodyDigest !== null && !hash_equals($this->bodyDigest, BodyDigest::of($body, (int) $body->getSize()))) {
-            throw HttpAttemptOperation::refuse('the body content changed after it was verified');
+        $reference = $this->reference;
+        if ($reference !== null && $this->verifiedSize !== null && ($reference->sent || $reference->digest !== null)) {
+            // A retry: read the body once, bounded by the size checked at preparation, and compare it with the reference.
+            try {
+                $sizeNow = $body->getSize();
+            } catch (\Throwable $failure) {
+                throw HttpAttemptOperation::refuse('the body size cannot be read', $failure);
+            }
+            if ($sizeNow !== $this->verifiedSize) {
+                throw HttpAttemptOperation::refuse('the body content changed between attempts');
+            }
+            $digest = BodyDigest::of($body, $this->verifiedSize);
+            if ($reference->digest !== null && !hash_equals($reference->digest, $digest)) {
+                throw HttpAttemptOperation::refuse('the body content changed between attempts');
+            }
+            $reference->digest ??= $digest;
         }
     }
 
@@ -71,12 +85,32 @@ final class HttpPreparedAttempt implements PreparedAttempt
             throw new \LogicException('This operation was built for the synchronous runtime.');
         }
 
-        return ($this->startAsync)($this->request, $context, $this->controls, $this->mayReuseConnection());
+        return ($this->startAsync)($this->outgoing(), $context, $this->controls, $this->mayReuseConnection());
     }
 
     public function invoke(AttemptContext $context): ResponseInterface
     {
-        return ($this->send)($this->request, $context, $this->controls, $this->mayReuseConnection());
+        return ($this->send)($this->outgoing(), $context, $this->controls, $this->mayReuseConnection());
+    }
+
+    /**
+     * The request handed to the transport. Without a reference yet, its body computes the reference digest while the
+     * transport reads it, so the first attempt costs no extra read. With a reference, the body is verified against it
+     * while the transport reads it, so a change after the final check stops the transfer.
+     */
+    private function outgoing(): RequestInterface
+    {
+        $reference = $this->reference;
+        // A body of size 0 was proven empty at preparation; there is nothing to verify while sending.
+        if ($reference === null || $this->verifiedSize === null || $this->verifiedSize === 0) {
+            return $this->request;
+        }
+        $body = new DigestingStream($this->request->getBody(), $this->verifiedSize, $reference->digest);
+        if ($reference->digest === null) {
+            $reference->track($body);
+        }
+
+        return $this->request->withBody($body);
     }
 
     private function mayReuseConnection(): bool

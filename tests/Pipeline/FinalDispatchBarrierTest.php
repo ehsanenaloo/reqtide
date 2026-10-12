@@ -17,6 +17,7 @@ use Enaxon\Reqtide\Runtime\AttemptOperation;
 use Enaxon\Reqtide\Runtime\PreparedAttempt;
 use Enaxon\Reqtide\Testing\RecordingAttemptOperation;
 use Enaxon\Reqtide\Tests\Pipeline\Support\Harness;
+use Enaxon\Reqtide\Tests\Pipeline\Support\SpyOperation;
 use Enaxon\Reqtide\Value\Duration;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -134,6 +135,117 @@ final class FinalDispatchBarrierTest extends TestCase
         self::assertSame(CompletionDisposition::Succeeded, $completion->disposition);
         self::assertCount(1, $operation->discardedOutcomes());
         self::assertSame(2, $operation->invokeCount());
+    }
+
+    public function testARuntimeThatNeverStartedTheRetryLeavesThePreviousOutcomeOpenAndTerminal(): void
+    {
+        $h = new Harness(false, false, false, true);
+        $h->runtimeOverride = new class implements \Enaxon\Reqtide\Runtime\RuntimeAdapter {
+            private int $calls = 0;
+
+            private \Enaxon\Reqtide\Runtime\SynchronousRuntimeAdapter $inner;
+
+            public function __construct()
+            {
+                $this->inner = new \Enaxon\Reqtide\Runtime\SynchronousRuntimeAdapter(\Enaxon\Reqtide\Runtime\SchedulingCapability::BoundedBlocking);
+            }
+
+            public function capabilities(): \Enaxon\Reqtide\Runtime\RuntimeCapabilities
+            {
+                return $this->inner->capabilities();
+            }
+
+            public function invoke(\Enaxon\Reqtide\Runtime\PreparedAttempt $operation, AttemptContext $context, \Enaxon\Reqtide\Runtime\AttemptControls $controls): \Enaxon\Reqtide\Runtime\RuntimeExecution
+            {
+                if (++$this->calls === 2) {
+                    throw new \Enaxon\Reqtide\Exception\ClockFailureException('The start time could not be read; nothing was invoked.');
+                }
+
+                return $this->inner->invoke($operation, $context, $controls);
+            }
+        };
+        $operation = self::failingOnce();
+
+        $completion = $h->pipeline(Harness::retry(3))->executeOperationDetailed($operation, $h->context(Duration::seconds(60), null, Harness::replayable()));
+
+        self::assertInstanceOf(\Enaxon\Reqtide\Exception\ClockFailureException::class, $completion->policyCause);
+        self::assertSame(1, $operation->invokeCount());
+        self::assertSame([], $operation->discardedOutcomes(), 'the retry never started, so the first outcome is still the result');
+        self::assertSame($completion->attempts[0]->outcome, $completion->terminalOutcome);
+    }
+
+    public function testASlowDisposalDoesNotDelayTheDispatchOfTheRetry(): void
+    {
+        $h = new Harness(false, false, false, true);
+        $operation = new SpyOperation($h->log);
+        $calls = 0;
+        $operation->body = static function () use (&$calls): string {
+            if (++$calls === 1) {
+                throw new \RuntimeException('transient');
+            }
+
+            return 'ok';
+        };
+        $operation->onDiscard = static function () use ($h): void {
+            $h->clock->advance(120 * 1_000 * self::MS);
+        };
+
+        $completion = $h->pipeline(Harness::retry(3))->executeOperationDetailed($operation, $h->context(Duration::seconds(60), null, Harness::replayable()));
+
+        $dispatches = array_keys($h->log->entries, 'dispatch', true);
+        self::assertCount(2, $dispatches);
+        self::assertGreaterThan($dispatches[1], $h->log->indexOf('discard'), 'the retry was dispatched before the replaced outcome was disposed');
+        self::assertSame('ok', $completion->terminalOutcome?->value());
+    }
+
+    public function testARetryThatFailsInTheRuntimeAfterDispatchStillDisposesTheOutcomeItReplaced(): void
+    {
+        $h = new Harness(false, false, false, true);
+        $h->runtimeOverride = new class implements \Enaxon\Reqtide\Runtime\RuntimeAdapter {
+            private int $calls = 0;
+
+            private \Enaxon\Reqtide\Runtime\SynchronousRuntimeAdapter $inner;
+
+            public function __construct()
+            {
+                $this->inner = new \Enaxon\Reqtide\Runtime\SynchronousRuntimeAdapter(\Enaxon\Reqtide\Runtime\SchedulingCapability::BoundedBlocking);
+            }
+
+            public function capabilities(): \Enaxon\Reqtide\Runtime\RuntimeCapabilities
+            {
+                return $this->inner->capabilities();
+            }
+
+            public function invoke(\Enaxon\Reqtide\Runtime\PreparedAttempt $operation, AttemptContext $context, \Enaxon\Reqtide\Runtime\AttemptControls $controls): \Enaxon\Reqtide\Runtime\RuntimeExecution
+            {
+                if (++$this->calls === 2) {
+                    throw new \RuntimeException('the runtime failed after the attempt began');
+                }
+
+                return $this->inner->invoke($operation, $context, $controls);
+            }
+        };
+        $operation = self::failingOnce();
+
+        $completion = $h->pipeline(Harness::retry(3))->executeOperationDetailed($operation, $h->context(Duration::seconds(60), null, Harness::replayable()));
+
+        self::assertCount(2, $completion->attempts, 'the second attempt counts as dispatched');
+        self::assertCount(1, $operation->discardedOutcomes(), 'the first outcome was replaced by a dispatched retry');
+        self::assertSame($completion->attempts[0]->outcome, $operation->discardedOutcomes()[0]);
+    }
+
+    public function testTheAllowanceDoesNotApplyToTheFirstAttempt(): void
+    {
+        $h = new Harness(false, false, false, true);
+        $operation = new RecordingAttemptOperation(static fn(): string => 'ok');
+
+        // The allowance (10 s) is longer than the whole budget (5 s): only retries need it.
+        $completion = $h->pipeline(Harness::retry(2, 10, 10_000, BackoffMode::Exponential, JitterMode::None, 10_000))
+            ->executeOperationDetailed($operation, $h->context(Duration::seconds(5), null, Harness::replayable()));
+
+        self::assertSame(1, $operation->invokeCount());
+        self::assertSame('ok', $completion->terminalOutcome?->value());
+        self::assertSame(0, $h->budget->committed);
     }
 
     /** @return iterable<string, array{string}> */
