@@ -134,6 +134,10 @@ jobs:
         with:
           persist-credentials: false
 
+      # The TLS certificate service runs in the PHP 8.3 image, so both images are built first.
+      - name: Build the PHP images
+        run: docker compose -f tools/docker/compose.yaml build php83 php84
+
       # The scripts start the pinned servers in Docker and set RT_REQUIRE_REDIS=1, so a missing server fails the step.
       - name: Redis clock suite (controlled server clock)
         run: PHP_SERVICE=php84 bash tools/check-redis-clock.sh
