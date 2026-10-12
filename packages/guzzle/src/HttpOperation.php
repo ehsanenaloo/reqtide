@@ -34,10 +34,15 @@ use Psr\Http\Message\StreamInterface;
  *
  * A replayable body is either a seekable stream that rewinds to position 0 (verified before every attempt) or a body
  * factory that returns a fresh stream of known size each time. A body that is neither is refused before dispatch.
+ * With the default {@see BodyIntegrity::Verified} the content of that body is also compared by SHA-256 digest before every
+ * attempt, so an identity never carries two payloads.
  */
 final readonly class HttpOperation
 {
     private const MUTATION_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
+
+    /** The default ceiling for a body whose content is verified (16 MiB). */
+    public const DEFAULT_MAX_VERIFIED_BODY_BYTES = 16_777_216;
 
     /** @var ?\Closure(): StreamInterface */
     public ?\Closure $bodyFactory;
@@ -50,8 +55,58 @@ final readonly class HttpOperation
         public GuzzleOperationDescriptor $descriptor,
         ?\Closure $bodyFactory,
         public ?string $identityHeader,
+        public BodyIntegrity $bodyIntegrity = BodyIntegrity::Verified,
+        public int $maxVerifiedBodyBytes = self::DEFAULT_MAX_VERIFIED_BODY_BYTES,
+        #[\SensitiveParameter]
+        private ?string $credentialKey = null,
     ) {
+        if ($maxVerifiedBodyBytes < 0) {
+            throw new InvalidConfigurationException('maxVerifiedBodyBytes must not be negative.');
+        }
         $this->bodyFactory = $bodyFactory;
+    }
+
+    /** The key of the credential fingerprint is never part of a dump of the operation. */
+    public function __debugInfo(): array
+    {
+        return [
+            'request' => $this->request,
+            'descriptor' => $this->descriptor,
+            'bodyFactory' => $this->bodyFactory,
+            'identityHeader' => $this->identityHeader,
+            'bodyIntegrity' => $this->bodyIntegrity,
+            'maxVerifiedBodyBytes' => $this->maxVerifiedBodyBytes,
+        ];
+    }
+
+    /**
+     * The same operation described for the client that sends it: the credential fingerprint then covers what the client
+     * defaults `headers`, `auth` and `proxy` add or replace, which is what the server receives. {@see ReqtideClient} does
+     * this itself; call it when you run the operation through your own pipeline and read {@see metadata()}.
+     *
+     * @throws InvalidConfigurationException when a Basic `auth` default would replace the header that carries the identity
+     */
+    public function forClient(GuzzleConfiguration $configuration): self
+    {
+        $defaults = $configuration->clientDefaults;
+        if (!array_key_exists('headers', $defaults) && !array_key_exists('auth', $defaults) && !array_key_exists('proxy', $defaults)) {
+            return $this;
+        }
+        $auth = $defaults['auth'] ?? null;
+        $basic = is_array($auth) && $auth !== [] && (!isset($auth[2]) || (is_string($auth[2]) && strtolower($auth[2]) === 'basic'));
+        if ($basic && $this->identityHeader !== null && strcasecmp($this->identityHeader, 'Authorization') === 0) {
+            throw new InvalidConfigurationException('The Basic auth client default replaces the Authorization header, which carries the identity of this operation.');
+        }
+
+        return new self(
+            $this->request,
+            $this->descriptor->resolvedFor($this->request, $defaults, $this->credentialKey),
+            $this->bodyFactory,
+            $this->identityHeader,
+            $this->bodyIntegrity,
+            $this->maxVerifiedBodyBytes,
+            $this->credentialKey,
+        );
     }
 
     /**
@@ -59,6 +114,8 @@ final readonly class HttpOperation
      *
      * @param Duration $validFor how long the statement holds, counted from now; it must be at least as long as the deadline of the operation
      * @param ?\Closure(): StreamInterface $bodyFactory fresh body per attempt, for a request with a body that cannot be rewound
+     * @param BodyIntegrity $bodyIntegrity whether the content of a replayed body is verified (the default) or the caller asserts it stays the same
+     * @param int $maxVerifiedBodyBytes the longest body whose content is verified; a longer body is refused unless the integrity is `CallerAsserted`
      * @param list<string> $retryableOutcomeCodes classifier reason codes that may be retried (the HTTP classifier names them, for example `HttpOutcomeClassifier::starter()->retryableOutcomeCodes()`). The default is empty: under a retrying pipeline no outcome is then retried and the pipeline only reports the reason `outcome_not_retryable`
      * @throws InvalidConfigurationException
      */
@@ -71,6 +128,8 @@ final readonly class HttpOperation
         ?Clock $clock = null,
         #[\SensitiveParameter]
         ?string $credentialKey = null,
+        BodyIntegrity $bodyIntegrity = BodyIntegrity::Verified,
+        int $maxVerifiedBodyBytes = self::DEFAULT_MAX_VERIFIED_BODY_BYTES,
     ): self {
         $method = strtoupper($request->getMethod());
         if ($method !== 'GET' && $method !== 'HEAD') {
@@ -92,7 +151,7 @@ final readonly class HttpOperation
             $retryableOutcomeCodes,
         );
 
-        return new self($request, GuzzleOperationDescriptor::fromRequest($request, $operationGroup, OperationSafety::replayableRead($contract), $credentialKey), $bodyFactory, null);
+        return new self($request, GuzzleOperationDescriptor::fromRequest($request, $operationGroup, OperationSafety::replayableRead($contract), $credentialKey), $bodyFactory, null, $bodyIntegrity, $maxVerifiedBodyBytes, $credentialKey);
     }
 
     /**
@@ -105,6 +164,8 @@ final readonly class HttpOperation
      * @param ?Duration $retention how long the provider keeps the identity; defaults to `$validFor`
      * @param ?string $identityHeader header that carries the identity; checked on every attempt. Null when the identity travels elsewhere (then the caller guarantees it is the same)
      * @param ?\Closure(): StreamInterface $bodyFactory fresh body per attempt, for a body that cannot be rewound
+     * @param BodyIntegrity $bodyIntegrity whether the content of a replayed body is verified (the default) or the caller asserts it stays the same
+     * @param int $maxVerifiedBodyBytes the longest body whose content is verified; a longer body is refused unless the integrity is `CallerAsserted`
      * @param list<string> $retryableOutcomeCodes classifier reason codes that may be retried; the default is empty, so a retrying pipeline never retries (see {@see read()})
      * @throws InvalidConfigurationException
      */
@@ -122,6 +183,8 @@ final readonly class HttpOperation
         ?Clock $clock = null,
         #[\SensitiveParameter]
         ?string $credentialKey = null,
+        BodyIntegrity $bodyIntegrity = BodyIntegrity::Verified,
+        int $maxVerifiedBodyBytes = self::DEFAULT_MAX_VERIFIED_BODY_BYTES,
     ): self {
         $method = strtoupper($request->getMethod());
         if (!in_array($method, self::MUTATION_METHODS, true)) {
@@ -149,7 +212,7 @@ final readonly class HttpOperation
             $retryableOutcomeCodes,
         );
 
-        return new self($request, GuzzleOperationDescriptor::fromRequest($request, $operationGroup, OperationSafety::providerIdempotentMutation($contract), $credentialKey), $bodyFactory, $identityHeader);
+        return new self($request, GuzzleOperationDescriptor::fromRequest($request, $operationGroup, OperationSafety::providerIdempotentMutation($contract), $credentialKey), $bodyFactory, $identityHeader, $bodyIntegrity, $maxVerifiedBodyBytes, $credentialKey);
     }
 
     /**
@@ -159,7 +222,7 @@ final readonly class HttpOperation
      */
     public static function single(RequestInterface $request, string $operationGroup, #[\SensitiveParameter] ?string $credentialKey = null): self
     {
-        return new self($request, GuzzleOperationDescriptor::fromRequest($request, $operationGroup, OperationSafety::unsafe(), $credentialKey), null, null);
+        return new self($request, GuzzleOperationDescriptor::fromRequest($request, $operationGroup, OperationSafety::unsafe(), $credentialKey), null, null, BodyIntegrity::CallerAsserted, 0, $credentialKey);
     }
 
     /** The bounded facts for the pipeline context: safety and the descriptor attributes. */

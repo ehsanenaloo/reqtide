@@ -229,7 +229,7 @@ final class ReqtideClient
      */
     private function context(CompiledPipeline $pipeline, HttpOperation $operation, Duration $timeout, ?Cancellation $cancellation): \Enaxon\Reqtide\Execution\ExecutionContext
     {
-        $metadata = $operation->metadata();
+        $metadata = $operation->forClient($this->configuration)->metadata();
 
         return $pipeline->newContext($timeout, $metadata->safety, null, $cancellation, $metadata->attributes);
     }

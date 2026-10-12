@@ -321,10 +321,8 @@ final class OperationRun
             $prepared = $this->prepare($prepareContext);
 
             if ($number > 1) {
-                if ($remaining->compare($this->definition->retry->minimumRemainingAttemptAllowance) < 0) {
-                    $this->log->add(Stage::Retry, ReasonCode::AttemptAllowanceUnavailable);
-                    throw new RetryDeclined('The minimum remaining attempt allowance is no longer available.');
-                }
+                // Preparation may have used part of the allowance: read the time again before reserving a token.
+                $this->requireAllowance($this->checkpointRemaining());
                 $phase = Stage::RetryBudget;
                 $this->reserveRetry($held, $attemptId);
             }
@@ -338,7 +336,12 @@ final class OperationRun
             $this->verifyReplay($prepared, $prepareContext);
             $remaining = $this->checkpointRemaining();
             if ($number > 1) {
+                $this->requireAllowance($remaining);
                 $this->commitRetry($held);
+                // The commit may call a backend: the last check before dispatch follows it. The disposal of the
+                // previous outcome comes after it, because the terminal outcome is never discarded.
+                $remaining = $this->checkpointRemaining();
+                $this->requireAllowance($remaining);
             }
             $this->discardPrevious();
 
@@ -409,6 +412,15 @@ final class OperationRun
             $this->markIncomplete(ReasonCode::CancellationSampleFailed);
 
             return false;
+        }
+    }
+
+    /** @throws RetryDeclined when less than the configured minimum allowance is left for this retry */
+    private function requireAllowance(Duration $remaining): void
+    {
+        if ($remaining->compare($this->definition->retry->minimumRemainingAttemptAllowance) < 0) {
+            $this->log->add(Stage::Retry, ReasonCode::AttemptAllowanceUnavailable);
+            throw new RetryDeclined('The minimum remaining attempt allowance is no longer available.');
         }
     }
 
@@ -1254,6 +1266,16 @@ final class OperationRun
             return $this->complete(
                 CompletionDisposition::DeadlineExceeded,
                 new DeadlineExceededException('The fallback settled at or after the operation deadline.'),
+                null,
+                $fallbackOutcome,
+            );
+        }
+
+        // The deadline wins over a cancellation, as for an attempt. The fallback outcome stays in the completion.
+        if ($this->cancellationRequested()) {
+            return $this->complete(
+                CompletionDisposition::Cancelled,
+                new OperationCancelledException('The operation was cancelled while the fallback ran.'),
                 null,
                 $fallbackOutcome,
             );

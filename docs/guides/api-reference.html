@@ -1292,7 +1292,9 @@
 <h3 id="guzzle-httpoperation"><code>HttpOperation</code> <small>Enaxon\Reqtide\Guzzle</small></h3>
 <p>One logical HTTP operation: an absolute request and your explicit statement of whether and how it may be sent again. Nothing is guessed from the method or a header.</p>
 <pre tabindex="0" role="group" aria-label="Signatures of HttpOperation" data-api="Enaxon\Reqtide\Guzzle\HttpOperation"><code class="language-api"><span class="tk-k">final</span> <span class="tk-k">readonly</span> <span class="tk-k">class</span> HttpOperation {
+    <span class="tk-k">public</span> <span class="tk-k">const</span> DEFAULT_MAX_VERIFIED_BODY_BYTES = <span class="tk-n">16777216</span>;
     <span class="tk-k">public</span> ?Closure <span class="tk-v">$bodyFactory</span>;
+    <span class="tk-k">public</span> <span class="tk-k">function</span> forClient(GuzzleConfiguration <span class="tk-v">$configuration</span>): <span class="tk-k">self</span>;
     <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> read(
         RequestInterface <span class="tk-v">$request</span>,
         <span class="tk-k">string</span> <span class="tk-v">$operationGroup</span>,
@@ -1301,6 +1303,8 @@
         ?Closure <span class="tk-v">$bodyFactory</span> = <span class="tk-k">null</span>,
         ?Clock <span class="tk-v">$clock</span> = <span class="tk-k">null</span>,
         ?<span class="tk-k">string</span> <span class="tk-v">$credentialKey</span> = <span class="tk-k">null</span>,
+        BodyIntegrity <span class="tk-v">$bodyIntegrity</span> = BodyIntegrity::Verified,
+        <span class="tk-k">int</span> <span class="tk-v">$maxVerifiedBodyBytes</span> = <span class="tk-k">self</span>::DEFAULT_MAX_VERIFIED_BODY_BYTES,
     ): <span class="tk-k">self</span>;
     <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> idempotentMutation(
         RequestInterface <span class="tk-v">$request</span>,
@@ -1315,6 +1319,8 @@
         ?Closure <span class="tk-v">$bodyFactory</span> = <span class="tk-k">null</span>,
         ?Clock <span class="tk-v">$clock</span> = <span class="tk-k">null</span>,
         ?<span class="tk-k">string</span> <span class="tk-v">$credentialKey</span> = <span class="tk-k">null</span>,
+        BodyIntegrity <span class="tk-v">$bodyIntegrity</span> = BodyIntegrity::Verified,
+        <span class="tk-k">int</span> <span class="tk-v">$maxVerifiedBodyBytes</span> = <span class="tk-k">self</span>::DEFAULT_MAX_VERIFIED_BODY_BYTES,
     ): <span class="tk-k">self</span>;
     <span class="tk-k">public</span> <span class="tk-k">static</span> <span class="tk-k">function</span> single(
         RequestInterface <span class="tk-v">$request</span>,

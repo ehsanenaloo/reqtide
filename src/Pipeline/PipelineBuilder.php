@@ -160,8 +160,10 @@ final class PipelineBuilder
      * assertion (`ReplaySafetyContract::forReadOnlyCallable()`): Reqtide never infers that repeating a callable
      * is safe. Delays grow from `$baseDelay` (constant or exponential) and never exceed `$maximumDelay`;
      * `JitterMode::Full` draws each delay uniformly from zero to that value.
-     * `$minimumRemainingAttemptAllowance` is the time that must still remain after a delay for another attempt
-     * to be worthwhile (default: none).
+     * `$minimumRemainingAttemptAllowance` is the time that must still remain for another attempt to be worthwhile
+     * (default: none). It is checked before the delay, after preparation and again at the final barrier before
+     * dispatch; a retry that would start with less time left is declined and the previous result stays. The
+     * barrier does not make the check and the transmission one atomic step.
      *
      * @throws InvalidConfigurationException
      */

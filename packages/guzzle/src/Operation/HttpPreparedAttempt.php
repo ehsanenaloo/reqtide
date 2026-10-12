@@ -33,7 +33,7 @@ final class HttpPreparedAttempt implements PreparedAttempt
      * @param \Closure(RequestInterface, AttemptContext, ?AttemptControls, bool): ResponseInterface $send
      * @param ?\Closure(RequestInterface, AttemptContext, ?AttemptControls, bool): PromiseInterface $startAsync
      */
-    public function __construct(private readonly HttpOperation $operation, private readonly RequestInterface $request, private readonly \Closure $send, private readonly ?\Closure $startAsync = null) {}
+    public function __construct(private readonly HttpOperation $operation, private readonly RequestInterface $request, private readonly \Closure $send, private readonly ?\Closure $startAsync = null, private readonly ?string $bodyDigest = null) {}
 
     /** Called by the runtime adapter, which alone receives the clock and deadline of the attempt. */
     public function bindControls(AttemptControls $controls): void
@@ -55,6 +55,9 @@ final class HttpPreparedAttempt implements PreparedAttempt
         }
         if ($moved) {
             throw HttpAttemptOperation::refuse('the body is no longer at its start');
+        }
+        if ($this->bodyDigest !== null && !hash_equals($this->bodyDigest, BodyDigest::of($body, (int) $body->getSize()))) {
+            throw HttpAttemptOperation::refuse('the body content changed after it was verified');
         }
     }
 

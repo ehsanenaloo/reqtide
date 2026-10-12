@@ -123,6 +123,25 @@ jobs:
       - name: Redis suite
         run: composer test:redis
 
+  redis-specialized:
+    if: github.repository == 'ehsanenaloo/reqtide'
+    name: Redis clock and TLS suites (PHP 8.4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The scripts start the pinned servers in Docker and set RT_REQUIRE_REDIS=1, so a missing server fails the step.
+      - name: Redis clock suite (controlled server clock)
+        run: PHP_SERVICE=php84 bash tools/check-redis-clock.sh
+
+      - name: Redis TLS suite
+        if: ${{ !cancelled() }}
+        run: PHP_SERVICE=php84 bash tools/check-redis-tls.sh
+
   audit:
     if: github.repository == 'ehsanenaloo/reqtide'
     name: Composer audit
@@ -156,8 +175,6 @@ jobs:
     name: Coverage and mutation (PHP 8.4)
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    # Informational: a separate job so it never gates the PHP matrix above.
-    continue-on-error: true
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

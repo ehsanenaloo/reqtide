@@ -7,9 +7,11 @@ namespace Enaxon\Reqtide\Guzzle\Tests\Unit;
 use Enaxon\Reqtide\Exception\PreparationFailedException;
 use Enaxon\Reqtide\Execution\AttemptContext;
 use Enaxon\Reqtide\Execution\BoundedMetadata;
+use Enaxon\Reqtide\Guzzle\BodyIntegrity;
 use Enaxon\Reqtide\Guzzle\HttpOperation;
 use Enaxon\Reqtide\Guzzle\Operation\HttpPreparedAttempt;
 use Enaxon\Reqtide\Guzzle\Tests\Support\CloseSpyStream;
+use Enaxon\Reqtide\Guzzle\Tests\Support\MutableBodyStream;
 use Enaxon\Reqtide\Guzzle\Tests\Support\NonSeekableStream;
 use Enaxon\Reqtide\Guzzle\Tests\Support\RewindRefusingStream;
 use Enaxon\Reqtide\Guzzle\Tests\Support\TellFailingStream;
@@ -69,7 +71,7 @@ final class HttpAttemptOperationTest extends TestCase
         };
     }
 
-    private function post(StreamInterface|string $body, ?\Closure $factory = null, string $key = 'key-1'): HttpOperation
+    private function post(StreamInterface|string $body, ?\Closure $factory = null, string $key = 'key-1', BodyIntegrity $integrity = BodyIntegrity::Verified, int $maxBytes = HttpOperation::DEFAULT_MAX_VERIFIED_BODY_BYTES): HttpOperation
     {
         return HttpOperation::idempotentMutation(
             new Request('POST', self::URL, ['Idempotency-Key' => $key], $body),
@@ -79,6 +81,8 @@ final class HttpAttemptOperationTest extends TestCase
             'returns the stored response',
             Duration::seconds(60),
             bodyFactory: $factory,
+            bodyIntegrity: $integrity,
+            maxVerifiedBodyBytes: $maxBytes,
         );
     }
 
@@ -144,7 +148,7 @@ final class HttpAttemptOperationTest extends TestCase
 
             return new NonSeekableStream(Utils::streamFor('abcdef'));
         };
-        $operation = $this->post('placeholder', $factory);
+        $operation = $this->post('placeholder', $factory, integrity: BodyIntegrity::CallerAsserted);
         $attempt = $operation->attemptOperation($this->sender());
 
         for ($i = 0; $i < 3; ++$i) {
@@ -159,7 +163,7 @@ final class HttpAttemptOperationTest extends TestCase
     public function testAFactoryThatReturnsTheSameUnrewindableStreamTwiceIsRefusedTheSecondTime(): void
     {
         $stream = new NonSeekableStream(Utils::streamFor('abc'));
-        $attempt = $this->post('x', static fn(): StreamInterface => $stream)->attemptOperation($this->sender());
+        $attempt = $this->post('x', static fn(): StreamInterface => $stream, integrity: BodyIntegrity::CallerAsserted)->attemptOperation($this->sender());
 
         $attempt->prepare($this->context());
         $this->expectException(PreparationFailedException::class);
@@ -209,6 +213,152 @@ final class HttpAttemptOperationTest extends TestCase
         $attempt->prepare($this->context())->invoke($this->context());
         $attempt->prepare($this->context())->invoke($this->context());
         self::assertCount(2, $this->sent);
+    }
+
+    public function testABodyThatBecomesEmptyBetweenAttemptsIsRefused(): void
+    {
+        $body = new MutableBodyStream('amount=100');
+        $attempt = $this->post($body)->attemptOperation($this->sender());
+        $attempt->prepare($this->context());
+
+        $body->replace('');
+
+        try {
+            $attempt->prepare($this->context());
+            self::fail('expected the preparation to be refused');
+        } catch (PreparationFailedException $e) {
+            self::assertStringContainsString('size changed', $e->preparationCause->getMessage());
+        }
+    }
+
+    public function testABodyThatBecomesNonEmptyBetweenAttemptsIsRefused(): void
+    {
+        $body = new MutableBodyStream('');
+        $attempt = $this->post($body)->attemptOperation($this->sender());
+        $attempt->prepare($this->context());
+
+        $body->replace('amount=900');
+
+        try {
+            $attempt->prepare($this->context());
+            self::fail('expected the preparation to be refused');
+        } catch (PreparationFailedException $e) {
+            self::assertStringContainsString('size changed', $e->preparationCause->getMessage());
+        }
+    }
+
+    public function testAnEmptyBodyThatStaysEmptyIsAcceptedEveryTime(): void
+    {
+        $attempt = $this->post(new MutableBodyStream(''))->attemptOperation($this->sender());
+
+        $first = $attempt->prepare($this->context());
+        $attempt->prepare($this->context());
+        $attempt->prepare($this->context());
+
+        self::assertInstanceOf(HttpPreparedAttempt::class, $first);
+    }
+
+    public function testABodyWithTheSameSizeButOtherBytesIsRefusedWhenTheContentIsVerified(): void
+    {
+        $contents = ['amount=100', 'amount=900'];
+        $attempt = $this->post('x', static function () use (&$contents): StreamInterface {
+            return Utils::streamFor(array_shift($contents) ?? '');
+        })->attemptOperation($this->sender());
+
+        $attempt->prepare($this->context());
+        try {
+            $attempt->prepare($this->context());
+            self::fail('expected the preparation to be refused');
+        } catch (PreparationFailedException $e) {
+            self::assertStringContainsString('content changed', $e->preparationCause->getMessage());
+        }
+        self::assertSame([], $this->sent);
+    }
+
+    public function testABodyWithTheSameBytesIsAcceptedEveryTimeWhenTheContentIsVerified(): void
+    {
+        $attempt = $this->post('x', static fn(): StreamInterface => Utils::streamFor('amount=100'))->attemptOperation($this->sender());
+
+        for ($i = 0; $i < 3; ++$i) {
+            $prepared = $attempt->prepare($this->context());
+            $prepared->verifyReplay($this->context());
+            $prepared->invoke($this->context());
+        }
+
+        self::assertSame(['amount=100', 'amount=100', 'amount=100'], array_map(static fn(RequestInterface $r): string => (string) $r->getBody(), $this->sent));
+    }
+
+    public function testASeekableBodyThatChangesItsBytesIsRefusedWhenTheContentIsVerified(): void
+    {
+        $body = new MutableBodyStream('amount=100');
+        $attempt = $this->post($body)->attemptOperation($this->sender());
+        $attempt->prepare($this->context());
+
+        $body->replace('amount=900');
+
+        try {
+            $attempt->prepare($this->context());
+            self::fail('expected the preparation to be refused');
+        } catch (PreparationFailedException $e) {
+            self::assertStringContainsString('content changed', $e->preparationCause->getMessage());
+        }
+    }
+
+    public function testTheFinalCheckCatchesABodyWhoseBytesChangedAfterPreparation(): void
+    {
+        $body = new MutableBodyStream('amount=100');
+        $prepared = $this->post($body)->attemptOperation($this->sender())->prepare($this->context());
+
+        $body->replace('amount=900');
+
+        try {
+            $prepared->verifyReplay($this->context());
+            self::fail('expected the final check to refuse');
+        } catch (PreparationFailedException $e) {
+            self::assertStringContainsString('content changed', $e->preparationCause->getMessage());
+        }
+        self::assertSame([], $this->sent);
+    }
+
+    public function testTheBytesAreTheCallersResponsibilityWhenTheCallerAssertsThem(): void
+    {
+        $contents = ['amount=100', 'amount=900'];
+        $attempt = $this->post('x', static function () use (&$contents): StreamInterface {
+            return Utils::streamFor(array_shift($contents) ?? '');
+        }, integrity: BodyIntegrity::CallerAsserted)->attemptOperation($this->sender());
+
+        $first = $attempt->prepare($this->context());
+        $second = $attempt->prepare($this->context());
+        $first->invoke($this->context());
+        $second->invoke($this->context());
+
+        self::assertSame(['amount=100', 'amount=900'], array_map(static fn(RequestInterface $r): string => (string) $r->getBody(), $this->sent));
+    }
+
+    public function testABodyThatCannotBeReadTwiceIsRefusedWhenTheContentIsVerified(): void
+    {
+        $this->assertRefused(
+            $this->post('x', static fn(): StreamInterface => new NonSeekableStream(Utils::streamFor('abc'))),
+            'content cannot be verified',
+        );
+    }
+
+    public function testABodyLargerThanTheLimitIsRefusedWhenTheContentIsVerified(): void
+    {
+        $this->assertRefused($this->post('0123456789', null, 'key-1', BodyIntegrity::Verified, 9), 'maxVerifiedBodyBytes');
+
+        $this->post('0123456789', null, 'key-1', BodyIntegrity::Verified, 10)->attemptOperation($this->sender())->prepare($this->context());
+        $this->post('0123456789', null, 'key-1', BodyIntegrity::CallerAsserted, 1)->attemptOperation($this->sender())->prepare($this->context());
+        self::assertSame([], $this->sent);
+    }
+
+    public function testTheContentOfALargeBodyIsReadInChunksAndTheStreamIsLeftAtItsStart(): void
+    {
+        $body = Utils::streamFor(str_repeat('abcdefgh', 100_000));
+        $prepared = $this->post($body)->attemptOperation($this->sender())->prepare($this->context());
+
+        $prepared->verifyReplay($this->context());
+        self::assertSame(0, $body->tell());
     }
 
     public function testTheStatedIdentityMustBePresentOnEveryAttempt(): void

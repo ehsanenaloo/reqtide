@@ -12,7 +12,7 @@ use Psr\Http\Message\RequestInterface;
 
 /**
  * The only request information that crosses into Core: the normalized method, a
- * fingerprint of the origin (scheme, host, port), a bounded operation group, a keyed fingerprint of the credential, and
+ * fingerprint of the origin (scheme, host, port), a bounded operation group, a keyed fingerprint of the credentials the request carries, and
  * the replay safety. It never holds or accepts a URI, a path, a query, a header or a body, so none of them can reach an
  * event, a Problem or a summary.
  */
@@ -42,8 +42,9 @@ final readonly class GuzzleOperationDescriptor
 
     /**
      * Derives the descriptor from an absolute request. The credential fingerprint is an HMAC (SHA-256) of the
-     * Authorization and Proxy-Authorization header values under `$credentialKey`; without a key a random key of this
-     * process is used, so the fingerprint then only compares requests within one process.
+     * Authorization and Proxy-Authorization header values of `$request` under `$credentialKey`; without a key a random
+     * key of this process is used, so the fingerprint then only compares requests within one process. It describes the
+     * request as given; {@see resolvedFor()} adds what the client defaults contribute.
      *
      * @throws InvalidConfigurationException for a relative URI or an invalid group
      */
@@ -57,21 +58,36 @@ final readonly class GuzzleOperationDescriptor
         }
         $port = $uri->getPort() ?? ($scheme === 'https' ? 443 : 80);
 
-        $credentials = [];
-        foreach (['Authorization', 'Proxy-Authorization'] as $name) {
-            foreach ($request->getHeader($name) as $value) {
-                $credentials[] = $name . ':' . $value;
-            }
-        }
-        $fingerprint = $credentials === [] ? null : substr(hash_hmac('sha256', implode("\0", $credentials), $credentialKey ?? self::processKey()), 0, 32);
-
         return new self(
             strtoupper($request->getMethod()),
             substr(hash('sha256', 'reqtide-origin-v1|' . $scheme . '|' . $host . '|' . $port), 0, 32),
             $operationGroup,
-            $fingerprint,
+            self::fingerprint(EffectiveCredentials::material($request), $credentialKey),
             $safety,
         );
+    }
+
+    /**
+     * The same descriptor with the credential fingerprint of the request as the client sends it: the client defaults
+     * `headers`, `auth` and `proxy` are applied the way Guzzle applies them.
+     *
+     * @param array<string, mixed> $clientDefaults
+     */
+    public function resolvedFor(RequestInterface $request, array $clientDefaults, #[\SensitiveParameter] ?string $credentialKey): self
+    {
+        return new self(
+            $this->normalizedMethod,
+            $this->originFingerprint,
+            $this->operationGroup,
+            self::fingerprint(EffectiveCredentials::material($request, $clientDefaults), $credentialKey),
+            $this->safety,
+        );
+    }
+
+    /** @param list<string> $material */
+    private static function fingerprint(array $material, #[\SensitiveParameter] ?string $credentialKey): ?string
+    {
+        return $material === [] ? null : substr(hash_hmac('sha256', implode("\0", $material), $credentialKey ?? self::processKey()), 0, 32);
     }
 
     public function toCoreMetadata(): OperationMetadata

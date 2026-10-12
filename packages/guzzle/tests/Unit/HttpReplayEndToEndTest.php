@@ -7,10 +7,12 @@ namespace Enaxon\Reqtide\Guzzle\Tests\Unit;
 use Enaxon\Reqtide\Completion\ExecutionCompletion;
 use Enaxon\Reqtide\Exception\InvalidConfigurationException;
 use Enaxon\Reqtide\Exception\PreparationFailedException;
+use Enaxon\Reqtide\Guzzle\BodyIntegrity;
 use Enaxon\Reqtide\Guzzle\HttpOperation;
 use Enaxon\Reqtide\Guzzle\HttpOutcomeClassifier;
 use Enaxon\Reqtide\Guzzle\Tests\Support\CloseSpyStream;
 use Enaxon\Reqtide\Guzzle\Tests\Support\FixtureServer;
+use Enaxon\Reqtide\Guzzle\Tests\Support\MutableBodyStream;
 use Enaxon\Reqtide\Pipeline\CompiledPipeline;
 use Enaxon\Reqtide\Pipeline\PipelineBuilder;
 use Enaxon\Reqtide\Policy\AttemptTimeoutRequirement;
@@ -146,6 +148,85 @@ final class HttpReplayEndToEndTest extends TestCase
         $this->runDetailed($operation);
 
         self::assertSame([17, 17, 17], array_column(self::$server->log(), 'bodyLength'));
+    }
+
+    public function testABodyThatBecomesEmptyAfterTheFirstAttemptIsNeverSentEmptyWithTheSameIdentity(): void
+    {
+        $body = new MutableBodyStream('amount=100');
+        $operation = HttpOperation::idempotentMutation(
+            new Request('POST', self::$server->baseUri . '/status/503', ['Idempotency-Key' => 'key-3'], $body),
+            'fixture.create',
+            'key-3',
+            's',
+            'd',
+            Duration::seconds(60),
+            retryableOutcomeCodes: self::codes(),
+        );
+        $send = $this->transfer();
+
+        $completion = $this->runDetailed($operation, static function (RequestInterface $request) use ($send, $body): ResponseInterface {
+            $response = $send($request);
+            $body->replace('');
+
+            return $response;
+        });
+
+        $log = self::$server->log();
+        self::assertCount(1, $log, 'the second attempt was refused before dispatch');
+        self::assertSame(10, $log[0]['bodyLength']);
+        self::assertInstanceOf(PreparationFailedException::class, $completion->policyCause);
+    }
+
+    public function testABodyWithOtherBytesOfTheSameSizeIsNeverSentWithTheSameIdentity(): void
+    {
+        $body = new MutableBodyStream('amount=100');
+        $operation = HttpOperation::idempotentMutation(
+            new Request('POST', self::$server->baseUri . '/status/503', ['Idempotency-Key' => 'key-4'], $body),
+            'fixture.create',
+            'key-4',
+            's',
+            'd',
+            Duration::seconds(60),
+            retryableOutcomeCodes: self::codes(),
+        );
+        $send = $this->transfer();
+
+        $completion = $this->runDetailed($operation, static function (RequestInterface $request) use ($send, $body): ResponseInterface {
+            $response = $send($request);
+            $body->replace('amount=900');
+
+            return $response;
+        });
+
+        $log = self::$server->log();
+        self::assertCount(1, $log, 'the second attempt was refused before dispatch');
+        self::assertSame(sha1('amount=100'), $log[0]['bodySha1']);
+        self::assertInstanceOf(PreparationFailedException::class, $completion->policyCause);
+    }
+
+    public function testABodyWithOtherBytesIsSentWhenTheCallerAssertsTheContent(): void
+    {
+        $body = new MutableBodyStream('amount=100');
+        $operation = HttpOperation::idempotentMutation(
+            new Request('POST', self::$server->baseUri . '/status/503', ['Idempotency-Key' => 'key-5'], $body),
+            'fixture.create',
+            'key-5',
+            's',
+            'd',
+            Duration::seconds(60),
+            retryableOutcomeCodes: self::codes(),
+            bodyIntegrity: BodyIntegrity::CallerAsserted,
+        );
+        $send = $this->transfer();
+
+        $this->runDetailed($operation, static function (RequestInterface $request) use ($send, $body): ResponseInterface {
+            $response = $send($request);
+            $body->replace('amount=900');
+
+            return $response;
+        });
+
+        self::assertSame([sha1('amount=100'), sha1('amount=900'), sha1('amount=900')], array_column(self::$server->log(), 'bodySha1'));
     }
 
     public function testANonSeekableMutationBodyWithoutAFactoryIsRefusedAndNothingIsSent(): void
