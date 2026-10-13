@@ -55,8 +55,7 @@ jobs:
         run: |
           uname -srm
           php -v | head -n 1
-          php -r 'echo PHP_INT_SIZE * 8, " bit, ", PHP_OS_FAMILY, "
-";'
+          php -r 'echo PHP_INT_SIZE * 8, " bit, ", PHP_OS_FAMILY, PHP_EOL;'
 
       - name: Validate manifest
         run: composer validate --strict --no-check-publish
