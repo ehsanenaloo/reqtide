@@ -13,7 +13,8 @@ This package is the Redis state backend of [Reqtide PHP](https://github.com/ehsa
 | Redis 7.4.11 and 8.2.10, Predis 3.7, PHP 8.3 to 8.5 command line | Tested locally in Docker, including TLS |
 | Redis older than 7.0 | Not supported: the scripts use `redis.acl_check_cmd`, which Redis 7.0 added. `initialize()` and `inspectServer()` refuse an older server, and every script fails before its first command on one |
 | Redis Cluster | Not supported by design. The scripts also touch keys they derive themselves (members of the registry index and entries of the tombstone queue), beyond the keys passed to them. The ACL pattern `~prefix:*` covers those keys |
-| PHP-FPM, Sentinel, Valkey, replicas | Not tested, not supported |
+| PHP-FPM (PHP 8.4, nginx, six workers) | Tested in CI: the state is shared by requests and workers, also under concurrent requests |
+| Other PHP versions under FPM, Apache, Sentinel, Valkey, replicas | Not tested, not supported |
 
 ## Set up
 

@@ -13,7 +13,8 @@ This package is the Guzzle integration of [Reqtide PHP](https://github.com/ehsan
 | `Retry-After` (seconds and HTTP dates) and a shared cooldown | Works |
 | Shared limits, circuit and cooldown across processes | Works with the Redis backends (tested with up to 6 processes) |
 | Guzzle 7.15.5, PHP 8.3 to 8.5 command line, cURL handlers | Tested locally |
-| PHP-FPM, Guzzle 8, the stream handler, PSR-18 | Not supported |
+| Guzzle 8, the stream handler, PSR-18 | Not supported |
+| The client under PHP-FPM | Not tested (the FPM lane in CI covers the Core and Redis packages) |
 
 ## Use
 
