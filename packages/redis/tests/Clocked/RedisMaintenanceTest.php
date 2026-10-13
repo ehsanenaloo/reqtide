@@ -8,6 +8,7 @@ use Enaxon\Reqtide\Exception\StateCapacityExceededException;
 use Enaxon\Reqtide\Outcome\CircuitVerdict;
 use Enaxon\Reqtide\Policy\ConcurrencyPolicy;
 use Enaxon\Reqtide\Policy\CooldownPolicy;
+use Enaxon\Reqtide\Policy\RetryBudgetPolicy;
 use Enaxon\Reqtide\Redis\RedisCircuitAdmin;
 use Enaxon\Reqtide\Redis\RedisCircuitBackend;
 use Enaxon\Reqtide\Redis\RedisConcurrencyBackend;
@@ -22,6 +23,7 @@ use Enaxon\Reqtide\State\ConcurrencyAdmissionStatus;
 use Enaxon\Reqtide\State\ConcurrencyPermit;
 use Enaxon\Reqtide\State\CooldownStatus;
 use Enaxon\Reqtide\State\FinalizationStatus;
+use Enaxon\Reqtide\State\RetryReservationStatus;
 use Enaxon\Reqtide\Tests\Contract\ContractCircuitRig;
 use Enaxon\Reqtide\Tests\Contract\ContractIdentities;
 use Enaxon\Reqtide\Value\Duration;
@@ -36,6 +38,9 @@ use PHPUnit\Framework\TestCase;
 final class RedisMaintenanceTest extends TestCase
 {
     private const SECOND = 1_000_000_000;
+
+    /** The pending cost of one reservation: one token in millionths. */
+    private const TOKEN = 1_000_000;
 
     private ?RedisBackendHarness $harness = null;
 
@@ -270,6 +275,54 @@ final class RedisMaintenanceTest extends TestCase
 
         $this->acquire($backend, $policy);
         self::assertSame([1, 300 - 256 + 2], $this->counters($registry));
+    }
+
+    public function testExpiredCircuitPermitsAreReclaimedInBoundedBatches(): void
+    {
+        $registry = $this->harness()->registry(maxRecords: 2_000);
+        $backend = new RedisCircuitBackend($this->harness()->options(), $registry);
+        $policy = ContractCircuitRig::countPolicy(window: 10_000, minimum: 10_000, leaseSeconds: 10);
+        for ($i = 0; $i < 300; ++$i) {
+            $permit = $backend->acquire($policy, $this->ids()->attempt(), $this->ids()->owner(), $this->ids()->command())->permit;
+            self::assertNotNull($permit);
+        }
+        self::assertSame([1, 300], $this->counters($registry));
+
+        $this->harness()->time()->advance(10 * self::SECOND);
+        $backend->acquire($policy, $this->ids()->attempt(), $this->ids()->owner(), $this->ids()->command());
+        self::assertSame([1, 300 - 128 + 1], $this->counters($registry), 'one call reclaims at most 128 expired permits');
+
+        $backend->acquire($policy, $this->ids()->attempt(), $this->ids()->owner(), $this->ids()->command());
+        self::assertSame([1, 300 - 256 + 2], $this->counters($registry));
+    }
+
+    /** The pending cost the production Lua computes for the partition now, in millionths of a token. */
+    private function pendingCost(\Enaxon\Reqtide\State\RetryBudgetBackend $backend, RetryBudgetPolicy $policy): int
+    {
+        $observation = $this->harness()->observeBudget($backend, $policy);
+        self::assertNotNull($observation);
+
+        return $observation['pending'];
+    }
+
+    public function testExpiredBudgetReservationsAreReclaimedInBoundedBatches(): void
+    {
+        $backend = $this->harness()->retryBudget(maxRecords: 2_000);
+        $policy = new RetryBudgetPolicy(ContractIdentities::identity('wide'), new PositiveInt(1_000), new PositiveInt(1), Duration::seconds(3_600), Duration::seconds(10));
+        for ($i = 0; $i < 300; ++$i) {
+            $decision = $backend->reserve($policy, $this->ids()->attempt(), $this->ids()->owner(), $this->ids()->command());
+            self::assertSame(RetryReservationStatus::Reserved, $decision->status);
+        }
+        self::assertSame(300 * self::TOKEN, $this->pendingCost($backend, $policy));
+
+        $this->harness()->time()->advance(10 * self::SECOND);
+        // The view applies what one call would: at most 128 of the 300 expired reservations are given back. The rest stays
+        // held; that can only refuse, never over-admit.
+        self::assertSame((300 - 128) * self::TOKEN, $this->pendingCost($backend, $policy));
+
+        $backend->reserve($policy, $this->ids()->attempt(), $this->ids()->owner(), $this->ids()->command());
+        // The call stored that result plus its own reservation (173 held); the view of the next call gives back 128 more.
+        self::assertSame((300 - 128 + 1 - 128) * self::TOKEN, $this->pendingCost($backend, $policy));
     }
 
     public function testAnEmptyRegistryHasNothingToDo(): void

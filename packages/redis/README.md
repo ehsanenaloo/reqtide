@@ -53,7 +53,7 @@ RedisEnvironment::explain($pipeline, $connection, $registry); // scope, timeout,
 - Minimum version: Redis 7.0. The project tests Redis 7.4.11 and 8.2.10.
 - Set `maxmemory-policy noeviction`. With a policy that evicts keys, the server can delete a partition without any signal and its protection starts again from nothing. Only the loss of the registry itself is reported.
 - The state lives in Redis memory. A restart without persistence, a flush or a failover loses it, and a lost registry rejects every protected call until you initialize it again. No fresh state is ever used in place of lost state.
-- TLS: set `tls: true`. The server certificate and the host name are always verified; there is no option to turn that off. Use `caFile` for a private CA and `tlsServerName` when you connect by address.
+- TLS: set `tls: true`. Without `tls: true` the password and every command travel in clear text; use TLS on any network you do not fully control. The server certificate and the host name are always verified; there is no option to turn that off. Use `caFile` for a private CA and `tlsServerName` when you connect by address.
 
 ## When something goes wrong
 

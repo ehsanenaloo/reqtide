@@ -45,12 +45,24 @@ final class CurlTransfer
 
     private function __construct(private readonly ClientInterface $client) {}
 
+    /** @return array<string, mixed> */
+    public function __debugInfo(): array
+    {
+        return ['transfers' => $this->transfers];
+    }
+
+    /** @return never */
+    public function __serialize(): array
+    {
+        throw new \LogicException('A transfer holds a client with its credentials and is not serializable.');
+    }
+
     /**
      * A transfer on a client built here with the cURL easy handler.
      *
      * @param array<string, mixed> $clientDefaults Guzzle client options such as `headers`, `proxy` or `verify`; `handler` is not accepted
      */
-    public static function curl(array $clientDefaults = []): self
+    public static function curl(#[\SensitiveParameter] array $clientDefaults = []): self
     {
         if (array_key_exists('handler', $clientDefaults)) {
             throw new InvalidConfigurationException('The handler is fixed to the cURL easy handler; remove "handler" from the client defaults.');

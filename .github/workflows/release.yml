@@ -25,12 +25,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Set up PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: "8.4"
-          extensions: bcmath, curl
+          extensions: bcmath, curl, intl
           coverage: none
           tools: composer:v2
 
@@ -45,6 +46,29 @@ jobs:
 
       - name: Dependency audit
         run: composer audit --abandoned=report
+
+      # Gate G16. The first tag has no earlier version to compare with. From the second tag on, the public API of the core
+      # package is compared with the previous tag. Before 1.0 a difference is reported but does not fail the release (a minor
+      # version may break); from 1.0 it fails.
+      - name: API compatibility with the previous tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          previous="$(git tag --list 'v*' --sort=-v:refname | grep -vxF "${TAG}" | head -n 1 || true)"
+          if [ -z "${previous}" ]; then
+            echo "First tag: there is no earlier version to compare with."
+            exit 0
+          fi
+          composer global require --no-interaction --no-progress roave/backward-compatibility-check
+          tool="$(composer global config bin-dir --absolute --quiet)/roave-backward-compatibility-check"
+          if "${tool}" --from="${previous}" --to="${TAG}"; then
+            exit 0
+          fi
+          case "${TAG}" in
+            v0.*) echo "Breaking changes against ${previous}; allowed before 1.0, list them in CHANGELOG.md." ;;
+            *) exit 1 ;;
+          esac
 
   draft:
     if: github.repository == 'ehsanenaloo/reqtide'
@@ -69,11 +93,9 @@ jobs:
           # git archive honors export-ignore rules from .gitattributes.
           git archive --format=tar.gz --prefix="reqtide-${TAG}/" -o "dist/reqtide-${TAG}.tar.gz" HEAD
           git archive --format=zip --prefix="reqtide-${TAG}/" -o "dist/reqtide-${TAG}.zip" HEAD
-          # The archive is the single package enaxon/reqtide (Core and the Testing namespace); fail if development folders leaked.
-          if tar -tzf "dist/reqtide-${TAG}.tar.gz" | grep -qE '^[^/]+/(tests|tools|\.github|benchmarks|examples|packages)/'; then
-            echo "development folders found in the archive" >&2
-            exit 1
-          fi
+          # The archive is the single package enaxon/reqtide (Core and the Testing namespace). Its top-level entries must be
+          # exactly the allowed ones; anything else (a development folder, a new file) fails the release.
+          bash tools/check-archive.sh "dist/reqtide-${TAG}.tar.gz"
           (cd dist && sha256sum ./* > SHA256SUMS)
           cat dist/SHA256SUMS
 

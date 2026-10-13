@@ -44,6 +44,14 @@ final class RedisEnvironment
     ): RuntimeEnvironment {
         $clock = new SystemClock();
 
+        // No I/O: the identities are checked against the key layout now, so a name that Core accepts but a Redis key cannot
+        // hold fails when the environment is built and not at the first call.
+        foreach ([$definition->rateLimit, $definition->circuit, $definition->concurrency, $definition->retryBudget, $definition->cooldown] as $policy) {
+            if ($policy !== null) {
+                $registry->keys()->assertIdentity($policy->identity);
+            }
+        }
+
         return new RuntimeEnvironment(
             $clock,
             new BoundedBlockingScheduler($clock),

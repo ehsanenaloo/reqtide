@@ -50,6 +50,14 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
+      # Evidence of the platform the tests run on (a GitHub-hosted Linux runner, not a container on another system).
+      - name: Record the platform
+        run: |
+          uname -srm
+          php -v | head -n 1
+          php -r 'echo PHP_INT_SIZE * 8, " bit, ", PHP_OS_FAMILY, "
+";'
+
       - name: Validate manifest
         run: composer validate --strict --no-check-publish
 
@@ -171,6 +179,21 @@ jobs:
       - name: Redis TLS suite
         if: ${{ !cancelled() }}
         run: PHP_SERVICE=php84 bash tools/check-redis-tls.sh
+
+  fpm:
+    if: github.repository == 'ehsanenaloo/reqtide'
+    name: PHP-FPM lane (PHP 8.4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # nginx and PHP-FPM with six workers in Docker, a Redis server, and a driver that sends requests through nginx.
+      - name: PHP-FPM lane
+        run: bash tools/check-fpm.sh
 
   audit:
     if: github.repository == 'ehsanenaloo/reqtide'

@@ -92,6 +92,21 @@ services:
     volumes: [ "tlsshare:/tls:ro" ]
     command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory-policy", "noeviction", "--port", "0", "--tls-port", "6379", "--tls-cert-file", "/tls/server.crt", "--tls-key-file", "/tls/server.key", "--tls-ca-cert-file", "/tls/ca.crt", "--tls-auth-clients", "no"]
     healthcheck: *redis-tls-health
+  # --- PHP-FPM with nginx for the FPM lane (profile "fpm"; run with tools/check-fpm.sh) ----------------------------------
+  # Six static workers behind nginx. The application is tools/fpm-lane/public/index.php; the PHP libraries come from the
+  # same vendor volume as the CLI image of the same PHP version. The Redis server is the plain one of the profile "redis".
+  fpm:
+    build: { context: ./fpm, args: { PHP_VERSION: "8.4.26" } }
+    image: reqtide-php-fpm:8.4
+    profiles: [fpm]
+    volumes: [ "../..:/app:ro", "vendor84:/opt/reqtide-vendor:ro" ]
+    environment: { RT_REDIS_HOST: redis82, RT_REDIS_PORT: "6379" }
+    depends_on: { redis82: { condition: service_healthy } }
+  web:
+    image: "nginx:1.28-alpine@sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236"
+    profiles: [fpm]
+    volumes: [ "../..:/app:ro", "./fpm/nginx.conf:/etc/nginx/conf.d/default.conf:ro" ]
+    depends_on: [fpm]
   # --- HTTP fixture server for the Guzzle package (profile "http") ------------------------------------------------------
   # The same server the Guzzle tests start themselves as a child process (packages/guzzle/tests/Fixture/server.php), as a
   # standalone service for lanes that need an external HTTP endpoint (several PHP processes). It records every

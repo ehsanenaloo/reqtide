@@ -38,13 +38,25 @@ final class CurlMultiTransfer
     private readonly Client $client;
 
     /** @param array<string, mixed> $clientDefaults Guzzle client options such as `headers`, `proxy` or `verify`; `handler` is not accepted */
-    public function __construct(array $clientDefaults = [])
+    public function __construct(#[\SensitiveParameter] array $clientDefaults = [])
     {
         if (array_key_exists('handler', $clientDefaults)) {
             throw new InvalidConfigurationException('The handler is fixed to an owned cURL multi handler; remove "handler" from the client defaults.');
         }
         $this->handler = new CurlMultiHandler(['select_timeout' => self::SELECT_TIMEOUT]);
         $this->client = new Client(['handler' => HandlerStack::create($this->handler)] + $clientDefaults);
+    }
+
+    /** @return array<string, mixed> */
+    public function __debugInfo(): array
+    {
+        return [];
+    }
+
+    /** @return never */
+    public function __serialize(): array
+    {
+        throw new \LogicException('A transfer holds a client with its credentials and is not serializable.');
     }
 
     /**

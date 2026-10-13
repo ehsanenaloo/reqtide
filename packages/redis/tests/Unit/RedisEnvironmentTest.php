@@ -56,6 +56,40 @@ final class RedisEnvironmentTest extends TestCase
             ->bulkhead(3, Duration::seconds(10));
     }
 
+    /** @return iterable<string, array{string, string}> */
+    public static function longIdentities(): iterable
+    {
+        yield 'application' => ['application', 'a'];
+        yield 'environment' => ['environment', 'e'];
+        yield 'profile version' => ['profile version', 'v'];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('longIdentities')]
+    public function testAnIdentityLongerThanTheKeyLayoutAllowsIsRefusedWhenTheEnvironmentIsBuilt(string $part, string $letter): void
+    {
+        $long = str_repeat($letter, 65);
+        $builder = PipelineBuilder::profile('billing', $part === 'profile version' ? $long : 'v1')
+            ->partition($part === 'application' ? $long : 'shop', $part === 'environment' ? $long : 'prod', 'billing-api')
+            ->attemptTimeout(Duration::seconds(2), AttemptTimeoutRequirement::Cooperative)
+            ->bulkhead(3, Duration::seconds(10));
+
+        $this->expectException(\Enaxon\Reqtide\Exception\InvalidConfigurationException::class);
+        $this->expectExceptionMessage('at most 64');
+        RedisEnvironment::for($builder->definition(), ExceptionClassifier::create(), $this->connection(), $this->registry());
+    }
+
+    public function testAnIdentityOfExactlyTheLimitIsAccepted(): void
+    {
+        $builder = PipelineBuilder::profile('billing', str_repeat('v', 64))
+            ->partition(str_repeat('a', 64), str_repeat('e', 64), 'billing-api')
+            ->attemptTimeout(Duration::seconds(2), AttemptTimeoutRequirement::Cooperative)
+            ->bulkhead(3, Duration::seconds(10));
+
+        $environment = RedisEnvironment::for($builder->definition(), ExceptionClassifier::create(), $this->connection(), $this->registry());
+
+        self::assertNotNull($environment->concurrency);
+    }
+
     public function testItBuildsOnlyTheBackendsOfTheConfiguredPolicies(): void
     {
         $builder = $this->builder();

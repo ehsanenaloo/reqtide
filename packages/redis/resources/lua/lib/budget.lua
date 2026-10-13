@@ -153,9 +153,13 @@ do
     -- The owners whose lease has been reached, in no particular order (the refund does not depend on the order). A member of
     -- the index without a record is stale: it is removed from the index unless `read_only` is set (inspection writes
     -- nothing and does not count it). A malformed record raises before anything of the caller is written.
+    -- At most EXPIRE_BATCH reservations are read per call, oldest first. A reservation that is not read stays held: it can
+    -- only reduce the headroom, never raise it, and the next call continues.
+    local EXPIRE_BATCH = 128
+
     local function expired_owners(state, akey, es, eu, read_only)
         local result = {}
-        for _, owner in ipairs(redis.call('ZRANGEBYSCORE', akey, '-inf', exact_int.format_int(es))) do
+        for _, owner in ipairs(redis.call('ZRANGEBYSCORE', akey, '-inf', exact_int.format_int(es), 'LIMIT', 0, EXPIRE_BATCH)) do
             local xs, xu = rt_rb.pending(state, owner)
             if xs == nil then
                 if not read_only then

@@ -79,7 +79,7 @@ final readonly class GuzzleOperationDescriptor
      * @param array<string, mixed> $clientDefaults
      * @param list<string> $credentialHeaders
      */
-    public function resolvedFor(RequestInterface $request, array $clientDefaults, #[\SensitiveParameter] ?string $credentialKey, array $credentialHeaders = []): self
+    public function resolvedFor(RequestInterface $request, #[\SensitiveParameter] array $clientDefaults, #[\SensitiveParameter] ?string $credentialKey, array $credentialHeaders = []): self
     {
         return new self(
             $this->normalizedMethod,

@@ -288,15 +288,19 @@ do
         state.gen = generation
     end
 
-    -- Removes every permit whose lease has been reached (neutral: no sample, no recovery credit). A freed probe may let
-    -- a HalfOpen circuit close. A permit whose record is malformed is left as it is, so the function never raises after it
-    -- has removed something.
+    -- Removes permits whose lease has been reached (neutral: no sample, no recovery credit), at most EXPIRE_BATCH per call,
+    -- oldest first. An expired permit that is not read stays counted as active: it can refuse a probe, never admit one too
+    -- many, and the next call continues. A freed probe may let a HalfOpen circuit close. A permit whose record is malformed
+    -- is left as it is and its index score moves to the next second so that it cannot take the batch of every later call;
+    -- the function never raises after it has removed something.
+    local EXPIRE_BATCH = 128
+
     function rt_cb.expire(ctx, meta, state, akey, wkey, es, eu)
         local freed = false
-        for _, owner in ipairs(redis.call('ZRANGEBYSCORE', akey, '-inf', exact_int.format_int(es))) do
+        for _, owner in ipairs(redis.call('ZRANGEBYSCORE', akey, '-inf', exact_int.format_int(es), 'LIMIT', 0, EXPIRE_BATCH)) do
             local readable, xs, xu, _, kind = pcall(rt_cb.permit, state, owner)
             if not readable then
-                -- Left in place.
+                redis.call('ZADD', akey, exact_int.format_int(es + 1), owner)
             elseif xs == nil then
                 redis.call('ZREM', akey, owner)
             elseif rt_state.reached(xs, xu, es, eu) then

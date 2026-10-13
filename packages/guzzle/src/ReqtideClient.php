@@ -71,6 +71,18 @@ final class ReqtideClient
         private readonly GuzzleConfiguration $configuration,
     ) {}
 
+    /** @return array<string, mixed> */
+    public function __debugInfo(): array
+    {
+        return ['configuration' => $this->configuration];
+    }
+
+    /** @return never */
+    public function __serialize(): array
+    {
+        throw new \LogicException('A client holds its transfer handlers and credentials and is not serializable.');
+    }
+
     /**
      * A client with process-local policy state.
      *

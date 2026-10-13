@@ -72,6 +72,18 @@ final readonly class KeyLayout
         );
     }
 
+    /**
+     * Checks the identity of a policy against what a key can hold, without building a key: application, environment,
+     * policy id and profile version of 1 to 64 characters. Core allows 128, so a longer one is refused here, when an
+     * environment is built, and not at the first call.
+     *
+     * @throws InvalidConfigurationException
+     */
+    public function assertIdentity(PolicyIdentity $identity): void
+    {
+        $this->partition(StateKind::Concurrency, $identity->partition->application->value, $identity->partition->environment->value, $identity->policy->value, $identity->profileVersion->value, '', '');
+    }
+
     public function partition(
         StateKind $kind,
         string $application,
@@ -83,7 +95,7 @@ final readonly class KeyLayout
     ): string {
         foreach ([$application, $environment, $policyId, $profileVersion] as $token) {
             if (preg_match(self::TOKEN, $token) !== 1) {
-                throw new InvalidConfigurationException('Application, environment, policy id and profile version must be 1 to 64 letters, digits, dots, underscores or hyphens.');
+                throw new InvalidConfigurationException('Application, environment, policy id and profile version must be 1 to 64 letters, digits, dots, underscores or hyphens; Redis keys hold at most 64 characters of each, Core allows 128.');
             }
         }
         if (strlen($tenant) > self::MAX_DIMENSION_BYTES || strlen($subject) > self::MAX_DIMENSION_BYTES) {

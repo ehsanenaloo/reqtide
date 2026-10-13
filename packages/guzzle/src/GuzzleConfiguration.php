@@ -45,6 +45,7 @@ final readonly class GuzzleConfiguration
      */
     public function __construct(
         ?HttpOutcomeClassifier $classifier = null,
+        #[\SensitiveParameter]
         public array $clientDefaults = [],
         UriInterface|string|null $baseUri = null,
         public array $credentialHeaders = [],
@@ -78,5 +79,27 @@ final readonly class GuzzleConfiguration
         }
         $this->baseUri = $baseUri;
         $this->classifier = $classifier ?? HttpOutcomeClassifier::starter();
+    }
+
+    /**
+     * The client defaults can hold credentials (Basic and Digest auth, proxy user information, key passphrases, default
+     * Authorization headers). A dump shows only the names of the options, never their values.
+     *
+     * @return array<string, mixed>
+     */
+    public function __debugInfo(): array
+    {
+        return [
+            'classifier' => $this->classifier,
+            'clientDefaults' => array_map(static fn(mixed $value): string => '***', $this->clientDefaults),
+            'baseUri' => $this->baseUri === null ? null : (string) $this->baseUri->withUserInfo(''),
+            'credentialHeaders' => $this->credentialHeaders,
+        ];
+    }
+
+    /** @return never */
+    public function __serialize(): array
+    {
+        throw new \LogicException('The client configuration can carry credentials and is not serializable.');
     }
 }

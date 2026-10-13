@@ -27,7 +27,7 @@ final class EffectiveCredentials
      * @param list<string> $credentialHeaders further header names that carry a credential
      * @return list<string>
      */
-    public static function material(RequestInterface $request, array $clientDefaults = [], array $credentialHeaders = []): array
+    public static function material(RequestInterface $request, #[\SensitiveParameter] array $clientDefaults = [], array $credentialHeaders = []): array
     {
         $names = self::NAMES;
         foreach ($credentialHeaders as $extra) {
