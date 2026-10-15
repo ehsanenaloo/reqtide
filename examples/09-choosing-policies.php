@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /**
  * 09 - Choosing policies: one small pipeline per protection, each run once so you can see what it refuses.
- * This is the code shown in docs/guides/choosing-policies.html. Numbers are examples for the demonstration, not
+ * This is the code shown in https://enaloo.com/apps/reqtide/docs/choosing-policies/. Numbers are examples for the demonstration, not
  * recommendations: Reqtide has no defaults and no universal safe values.
  *
  * Process-local, in-memory state only.

@@ -27,9 +27,8 @@ Tested on the command line with PHP 8.3, 8.4 and 8.5, Redis 7.4.11 and 8.2.10, P
 - Typed events, `explain()` and detailed results with per-attempt records (`executeDetailed()`).
 - `ExceptionClassifier`, a conservative ready-made classifier: nothing is retried or replaced by a fallback unless you list its class.
 - Test helpers in the same package, namespace `Enaxon\Reqtide\Testing`: a virtual clock, a delay scheduler that advances the clock instead of sleeping, scripted attempts, seeded randomness and an event recorder.
-- Documentation in `docs/`: install, getting started, choosing policies, error handling, testing, limits, a self-run comparison with six libraries, and a FAQ. Every code and output block is an excerpt of an example that is run and compared with recorded output.
+- Documentation at https://enaloo.com/apps/reqtide/docs/ (English and Persian): install, getting started, choosing policies, error handling, testing, limits, a self-run comparison with six libraries, and a FAQ. Every code and output block is an excerpt of an example that is run and compared with recorded output.
 - Runnable examples 01 to 11 in `examples/` with recorded output, and a script to run them.
-- A short description for language-model readers in `docs/llms.txt`.
 - Two separate packages, not part of the archive of `enaxon/reqtide`:
   - `enaxon/reqtide-redis`: rate limit, circuit breaker, bulkhead, retry budget and cooldown state in Redis, shared by several processes.
   - `enaxon/reqtide-guzzle`: retries, deadlines, rate limits and circuit breaking around Guzzle requests.
@@ -38,9 +37,9 @@ Tested on the command line with PHP 8.3, 8.4 and 8.5, Redis 7.4.11 and 8.2.10, P
 ### Changed
 
 - The Composer vendor is `enaxon` (packages `enaxon/reqtide`, `enaxon/reqtide-redis` and `enaxon/reqtide-guzzle`) and the PHP namespace is `Enaxon\Reqtide`. The error type is the tag URI `tag:enaloo.com,2026:reqtide:problem:<code>`. Nothing was released under earlier names.
-- The core package `enaxon/reqtide` has its manifest at the repository root. The test helpers ship inside it. Tests, tools, examples and the repository's own planning files are left out of the distribution archive, which holds `src/`, `docs/`, `composer.json`, `README.md`, `LICENSE` and `CHANGELOG.md`.
+- The core package `enaxon/reqtide` has its manifest at the repository root. The test helpers ship inside it. Tests, tools, examples and the repository's own planning files are left out of the distribution archive, which holds `src/`, `composer.json`, `README.md`, `LICENSE`, `NOTICE` and `CHANGELOG.md`.
 - The community files (contributing guide, code of conduct, security policy and support notes) moved to `.github/`.
-- The README is shorter and links to the new documentation pages. The comparison table moved to `docs/guides/comparison.html`.
+- The README is shorter and links to the new documentation pages. The comparison table moved to the documentation site (https://enaloo.com/apps/reqtide/docs/comparison/).
 
 ### Security
 

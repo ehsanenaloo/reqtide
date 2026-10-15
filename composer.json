@@ -23,7 +23,7 @@
     "support": {
         "issues": "https://github.com/ehsanenaloo/reqtide/issues",
         "source": "https://github.com/ehsanenaloo/reqtide",
-        "docs": "https://github.com/ehsanenaloo/reqtide/tree/main/docs",
+        "docs": "https://enaloo.com/apps/reqtide/docs/",
         "security": "https://github.com/ehsanenaloo/reqtide/security/policy"
     },
     "require": {
@@ -90,15 +90,7 @@
             "composer validate --strict --no-check-publish packages/redis/composer.json",
             "composer validate --strict --no-check-publish packages/guzzle/composer.json"
         ],
-        "docs": [
-            "@php tools/build-docs-api.php",
-            "@php tools/build-docs-index.php"
-        ],
-        "docs:check": [
-            "@php tools/build-docs-api.php --check",
-            "@php tools/build-docs-index.php --check",
-            "@php tools/check-docs.php"
-        ],
+        "docs:check": "@php tools/check-docs.php",
         "test:tools": "bash tools/test-select-baseline.sh",
         "check": [
             "@validate:manifest",
@@ -121,8 +113,7 @@
         "check:redis-clock": "Start Redis 7.4.11 and 8.2.10 under libfaketime in Docker (compose profile redis-time) and run the contract suites against each",
         "check:redis": "Start Redis 7.4.11 and 8.2.10 in Docker (compose profile redis) and run the Redis suites on one PHP lane against both",
         "validate:manifest": "Run composer validate --strict on composer.json and on each packages/*/composer.json",
-        "docs": "Regenerate the API reference page and the documentation search index from src/ and the docs pages",
-        "docs:check": "Fail when a generated documentation file is stale or a code block in the docs does not match its example",
+        "docs:check": "Fail when a code block in the README does not match its example",
         "coverage": "Run PHPUnit with pcov and write text, Clover and HTML reports under build/coverage",
         "mutation": "Run Infection mutation testing on src; reports under build/infection"
     }

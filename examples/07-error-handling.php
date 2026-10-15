@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /**
  * 07 - Error handling: your exceptions, Reqtide's refusals, ReasonCode and Problem, and detailed mode.
- * This is the code shown in docs/guides/error-handling.html.
+ * This is the code shown in https://enaloo.com/apps/reqtide/docs/error-handling/.
  *
  * Process-local, in-memory state only.
  *

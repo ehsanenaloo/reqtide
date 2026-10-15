@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /**
  * 10 - Concepts: the pipeline you build once, the operation you run, and the partition both belong to.
- * This is the code shown in docs/guides/concepts.html. Numbers are examples for the demonstration, not
+ * This is the code shown in https://enaloo.com/apps/reqtide/docs/concepts/. Numbers are examples for the demonstration, not
  * recommendations: Reqtide has no defaults and no universal safe values.
  *
  * Process-local, in-memory state only.

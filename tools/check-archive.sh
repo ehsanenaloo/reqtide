@@ -4,11 +4,11 @@
 #   tools/check-archive.sh dist/reqtide-v0.1.0.tar.gz     a tar.gz made by `git archive --prefix=NAME/`
 #   git archive HEAD | tools/check-archive.sh -            the same from a pipe (no prefix is assumed to be there)
 #
-# Allowed: CHANGELOG.md, LICENSE, NOTICE, README.md, composer.json, docs, src. Anything else, or a missing required
+# Allowed: CHANGELOG.md, LICENSE, NOTICE, README.md, composer.json, src. Anything else, or a missing required
 # entry (composer.json, src, LICENSE, README.md), fails. Prints each unexpected entry.
 set -u
 
-allowed="CHANGELOG.md LICENSE NOTICE README.md composer.json docs src"
+allowed="CHANGELOG.md LICENSE NOTICE README.md composer.json src"
 required="LICENSE README.md composer.json src"
 source="${1:--}"
 

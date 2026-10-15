@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /**
  * 11 - Rate limit charges: every dispatch costs units, retries included, and a charge is never refunded.
- * This is the code shown in docs/guides/rate-limiting.html. Numbers are examples for the demonstration,
+ * This is the code shown in https://enaloo.com/apps/reqtide/docs/rate-limiting/. Numbers are examples for the demonstration,
  * not recommendations.
  *
  * Process-local, in-memory state only.

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /**
  * 06 - Getting started: the smallest useful pipeline, self-contained. This is the code shown in the README and in
- * docs/guides/getting-started.html; example 01 is the same idea with longer comments and self-checks.
+ * https://enaloo.com/apps/reqtide/docs/getting-started/; example 01 is the same idea with longer comments and self-checks.
  *
  * Process-local, in-memory state only. The retry delays really sleep (a few milliseconds).
  *

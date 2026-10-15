@@ -10,7 +10,7 @@ For anything larger than a small fix, or anything that adds a public class, an o
 
 - **Bug:** use the [bug form](https://github.com/ehsanenaloo/reqtide/issues/new/choose). Give your PHP version, the Reqtide version or commit, a short script that reproduces the problem, what you expected and what happened.
 - **Feature:** use the feature form. Say what you are trying to do and what is missing.
-- **Question:** use the question form, after you read the [documentation](../docs/README.md).
+- **Question:** use the question form, after you read the [documentation](https://enaloo.com/apps/reqtide/docs/).
 - **Security problem:** report it privately. See [SECURITY.md](SECURITY.md). Never use a public issue.
 
 Do not paste secrets, tokens or production data into an issue.
@@ -37,7 +37,7 @@ Everyday commands. Put `docker compose -f tools/docker/compose.yaml run --rm php
 | `composer stan` | Static analysis |
 | `composer cs` | Shows coding-standard problems without changing files |
 | `composer cs:fix` | Fixes coding-standard problems |
-| `composer docs:check` | Checks that the generated documentation files are current and that the code blocks in the docs match the examples |
+| `composer docs:check` | Checks that the code blocks in the README match the examples |
 
 Run one test file or one test:
 
@@ -69,14 +69,13 @@ bash tools/check-redis-tls.sh
 ## Tests, examples and documentation
 
 - Add or update tests for every behavior change. A bug fix starts with a test that fails.
-- The code and output blocks in `README.md` and `docs/` come from the scripts in `examples/` and their recorded output in `examples/expected/`. Do not paste a snippet that you have not run. Check the examples and the documentation:
+- The code and output blocks in `README.md` come from the scripts in `examples/` and their recorded output in `examples/expected/`. Do not paste a snippet that you have not run. Check the examples and the README:
 
 ```bash
 tools/run-examples.sh        # runs the examples in Docker and compares their output
 docker compose -f tools/docker/compose.yaml run --rm php83 composer docs:check
 ```
 
-- If you change the public API, run `composer docs` to rebuild the generated documentation files. Do not edit those files by hand.
 - Add a line under **Unreleased** in `CHANGELOG.md` for any change a user can see. If a change breaks existing code, also describe the steps to migrate in `UPGRADE.md`.
 - Write short sentences and plain words. State what was checked and how. Do not make claims about speed, support or availability that you did not measure.
 

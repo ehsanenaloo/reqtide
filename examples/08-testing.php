@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /**
  * 08 - Testing without sleeping: virtual time, scripted attempts and recorded events from the Enaxon\Reqtide\Testing helpers.
- * This is the code shown in docs/guides/testing.html. It uses plain checks so it runs without a test framework; in a real
+ * This is the code shown in https://enaloo.com/apps/reqtide/docs/testing/. It uses plain checks so it runs without a test framework; in a real
  * suite replace `expect()` with your framework's assertions.
  *
  * The helpers ship inside enaxon/reqtide itself (src/Testing); no separate install.

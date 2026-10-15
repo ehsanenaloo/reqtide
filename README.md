@@ -2,7 +2,7 @@
 
 **English** | [فارسی](.github/README.fa.md)
 
-<a href="docs/index.html"><img src="docs/assets/logo.svg" width="112" height="112" alt="Reqtide logo"></a>
+<a href="https://enaloo.com/apps/reqtide/docs/"><img src=".github/assets/logo.svg" width="112" height="112" alt="Reqtide logo"></a>
 
 # Reqtide PHP
 
@@ -11,16 +11,14 @@
 A resilience toolkit for PHP code that calls unreliable APIs.
 No runtime dependencies in the core package. Beta: version 0.x, the API can change between minor versions.
 
-[![User guide](https://img.shields.io/badge/User%20guide-Open%20the%20docs-0f766e?logo=readthedocs&logoColor=white&style=for-the-badge)](docs/index.html)
+[![User guide](https://img.shields.io/badge/User%20guide-Open%20the%20docs-0f766e?logo=readthedocs&logoColor=white&style=for-the-badge)](https://enaloo.com/apps/reqtide/docs/)
 [![Examples](https://img.shields.io/badge/Examples-Run%20in%20Docker-2496ED?logo=docker&logoColor=white&style=for-the-badge)](examples)
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 ![PHP 8.3+](https://img.shields.io/badge/PHP-8.3%2B-777BB4)
 ![Core runtime dependencies: none](https://img.shields.io/badge/core%20runtime%20dependencies-none-lightgrey)
 ![Status: beta](https://img.shields.io/badge/status-beta-yellow)
-[![Docs](https://img.shields.io/badge/docs-guides-0f766e)](docs/index.html)
-
-<a href="docs/index.html"><img src="docs/assets/screenshots/guide-home-light.jpg" width="860" alt="The Reqtide documentation home page"></a>
+[![Docs](https://img.shields.io/badge/docs-guides-0f766e)](https://enaloo.com/apps/reqtide/docs/)
 
 </div>
 
@@ -30,7 +28,7 @@ A retry loop here, a counter there, a flag that says "the service is down". Thes
 
 Reqtide puts these decisions in one pipeline with a fixed order. You set a total deadline, retries with a budget, a rate limit, a circuit breaker, a bulkhead and, if you want one, a fallback. Failures come back as typed results you can branch on. Every number is yours, because Reqtide ships no defaults. Time is injected, so a test of exponential backoff runs in microseconds.
 
-It wraps a callable. It is not an HTTP client, a queue or edge protection. In the core package the state lives in the memory of one PHP process (see [Limits and non-guarantees](docs/guides/limits.html)).
+It wraps a callable. It is not an HTTP client, a queue or edge protection. In the core package the state lives in the memory of one PHP process (see [Limits and non-guarantees](https://enaloo.com/apps/reqtide/docs/limits/)).
 
 ---
 
@@ -48,7 +46,7 @@ composer require enaxon/reqtide-redis   # optional: state shared by processes
 composer require enaxon/reqtide-guzzle  # optional: Guzzle integration
 ```
 
-The three packages are released together at one version. Each adapter needs exactly the same version of the core. To run the examples without PHP on your machine, clone the repository and use Docker: see [Install](docs/guides/install.html).
+The three packages are released together at one version. Each adapter needs exactly the same version of the core. To run the examples without PHP on your machine, clone the repository and use Docker: see [Install](https://enaloo.com/apps/reqtide/docs/install/).
 
 Save this as `demo.php` in a project with the core package installed. It is [`examples/06-getting-started.php`](examples/06-getting-started.php).
 
@@ -120,7 +118,7 @@ ok on attempt 3
 invocations: 3
 ```
 
-`forReadOnlyCallable()` is your statement that running the callable again is safe. Reqtide never guesses, and does not retry without it. [Getting started](docs/guides/getting-started.html) explains each line.
+`forReadOnlyCallable()` is your statement that running the callable again is safe. Reqtide never guesses, and does not retry without it. [Getting started](https://enaloo.com/apps/reqtide/docs/getting-started/) explains each line.
 
 ---
 
@@ -287,15 +285,15 @@ failing server: status 503, requests at the server: 3
 
 ## A full guide
 
-The guide is a static site in [`docs/`](docs/README.md): 15 pages, search, light and dark themes, no build step. Open `docs/index.html` in a browser.
+The guide is on [enaloo.com](https://enaloo.com/apps/reqtide/docs/): 16 pages, with search and light and dark themes.
 
 | Topic | Read |
 |---|---|
-| Start | [Install](docs/guides/install.html) · [Getting started](docs/guides/getting-started.html) |
-| Core ideas | [Concepts](docs/guides/concepts.html) · [Choosing policies](docs/guides/choosing-policies.html) |
-| Protections | [Retry](docs/guides/retry-and-budget.html) · [Rate limit](docs/guides/rate-limiting.html) · [Circuit breaker](docs/guides/circuit-breaker.html) · [Bulkhead and cooldown](docs/guides/bulkhead-and-cooldown.html) · [Fallback](docs/guides/fallback.html) |
-| Errors and tests | [Error handling](docs/guides/error-handling.html) · [Testing](docs/guides/testing.html) |
-| Reference | [API reference](docs/guides/api-reference.html) · [Limits](docs/guides/limits.html) · [Comparison](docs/guides/comparison.html) · [FAQ](docs/guides/faq.html) |
+| Start | [Install](https://enaloo.com/apps/reqtide/docs/install/) · [Getting started](https://enaloo.com/apps/reqtide/docs/getting-started/) |
+| Core ideas | [Concepts](https://enaloo.com/apps/reqtide/docs/concepts/) · [Choosing policies](https://enaloo.com/apps/reqtide/docs/choosing-policies/) |
+| Protections | [Retry](https://enaloo.com/apps/reqtide/docs/retry-and-budget/) · [Rate limit](https://enaloo.com/apps/reqtide/docs/rate-limiting/) · [Circuit breaker](https://enaloo.com/apps/reqtide/docs/circuit-breaker/) · [Bulkhead and cooldown](https://enaloo.com/apps/reqtide/docs/bulkhead-and-cooldown/) · [Fallback](https://enaloo.com/apps/reqtide/docs/fallback/) |
+| Errors and tests | [Error handling](https://enaloo.com/apps/reqtide/docs/error-handling/) · [Testing](https://enaloo.com/apps/reqtide/docs/testing/) |
+| Reference | [API reference](src) · [Limits](https://enaloo.com/apps/reqtide/docs/limits/) · [Comparison](https://enaloo.com/apps/reqtide/docs/comparison/) · [FAQ](https://enaloo.com/apps/reqtide/docs/faq/) |
 
 ---
 
@@ -317,7 +315,7 @@ try {
 business exception: Reqtide\Examples\ErrorHandling\UpstreamTimeout (upstream timed out)
 ```
 
-Branch on `ReasonCode` and `retryability`, not on message text. See [Error handling](docs/guides/error-handling.html).
+Branch on `ReasonCode` and `retryability`, not on message text. See [Error handling](https://enaloo.com/apps/reqtide/docs/error-handling/).
 
 ---
 
@@ -326,7 +324,7 @@ Branch on `ReasonCode` and `retryability`, not on message text. See [Error handl
 These are local runs in Docker containers, on the command line.
 
 - **Core.** The unit tests, static analysis at the highest PHPStan level and the coding standard pass on PHP 8.3, 8.4 and 8.5.
-- **Examples and docs.** Every example runs, and its output is compared with a recorded file. Every code and output block in this README and in `docs/` is checked against those files.
+- **Examples and docs.** Every example runs, and its output is compared with a recorded file. Every code and output block in this README is checked against those files.
 - **Redis package.** The suites run against Redis 7.4.11 and 8.2.10, with TLS and with a controllable server clock.
 - **Guzzle package.** Guzzle 7.15.5 with the cURL handlers. Cross-process and fault scenarios are judged by the request counts a test server sees. Random secrets were searched for in everything the package produces, with no hit.
 
@@ -339,7 +337,7 @@ These are local runs in Docker containers, on the command line.
 - There is no exactly-once execution, and a rate unit is not given back when a call is cancelled before dispatch.
 - The project has not had an independent security review.
 
-The full list is in [Limits and non-guarantees](docs/guides/limits.html).
+The full list is in [Limits and non-guarantees](https://enaloo.com/apps/reqtide/docs/limits/).
 
 ---
 
@@ -357,7 +355,7 @@ The full list is in [Limits and non-guarantees](docs/guides/limits.html).
 <details>
 <summary><b>Is it on Packagist?</b></summary>
 
-Yes: `composer require enaxon/reqtide`. See [Install](docs/guides/install.html).
+Yes: `composer require enaxon/reqtide`. See [Install](https://enaloo.com/apps/reqtide/docs/install/).
 </details>
 
 <details>

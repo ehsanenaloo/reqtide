@@ -7,7 +7,7 @@ declare(strict_types=1);
  *
  *   php tools/check-docs.php [file ...]
  *
- * Default files: README.md, docs/README.md and docs/guides/*.html. A file ending in .md is read for fenced blocks,
+ * Default files: README.md and .github/README.fa.md, and, where a docs/ folder exists, docs/README.md and docs/guides/*.html. A file ending in .md is read for fenced blocks,
  * a file ending in .html for `<pre><code class="language-...">` blocks. For both:
  *
  *  - `php` blocks must be a contiguous excerpt of one script in examples/NN-*.php;
@@ -87,10 +87,10 @@ $homepage = (string) ($composer['homepage'] ?? '');
 $explicit = array_slice($argv, 1);
 $files = $explicit;
 if ($files === []) {
-    $files = array_merge(
-        [$root . '/README.md', $root . '/docs/README.md'],
-        glob($root . '/docs/guides/*.html') ?: [],
-    );
+    $files = [$root . '/README.md', $root . '/.github/README.fa.md'];
+    if (is_file($root . '/docs/README.md')) {
+        $files = array_merge($files, [$root . '/docs/README.md'], glob($root . '/docs/guides/*.html') ?: []);
+    }
 }
 
 /**
@@ -191,6 +191,9 @@ foreach ($files as $file) {
 $generated = 0;
 if ($explicit === []) {
     foreach (['build-docs-api.php', 'build-docs-index.php'] as $tool) {
+        if (!is_file(__DIR__ . '/' . $tool)) {
+            continue;
+        }
         ++$generated;
         $command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/' . $tool) . ' --check 2>&1';
         $lines = [];

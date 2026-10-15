@@ -12,8 +12,7 @@
 # Keep distributions lean (applies to `git archive`, GitHub release archives and Packagist dist downloads).
 # The adapter packages under packages/ are developed here and split into their own repositories at release; they are
 # not part of the enaxon/reqtide distribution.
-# The dist keeps exactly: src/ (including src/Testing), docs/ (including docs/llms.txt), composer.json, README.md,
-# LICENSE, NOTICE and CHANGELOG.md. UPGRADE.md stays in the repository only. The community files (CONTRIBUTING,
+# The dist keeps exactly: src/ (including src/Testing), composer.json, README.md, LICENSE, NOTICE and CHANGELOG.md. UPGRADE.md stays in the repository only. The community files (CONTRIBUTING,
 # CODE_OF_CONDUCT, SECURITY, SUPPORT, RELEASING) live in .github/ and are therefore excluded with it.
 /.github/               export-ignore
 /tests/                 export-ignore

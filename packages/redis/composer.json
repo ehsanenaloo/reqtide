@@ -11,7 +11,7 @@
     "support": {
         "issues": "https://github.com/ehsanenaloo/reqtide/issues",
         "source": "https://github.com/ehsanenaloo/reqtide",
-        "docs": "https://github.com/ehsanenaloo/reqtide/tree/main/docs",
+        "docs": "https://enaloo.com/apps/reqtide/docs/",
         "security": "https://github.com/ehsanenaloo/reqtide/security/policy"
     },
     "require": {
