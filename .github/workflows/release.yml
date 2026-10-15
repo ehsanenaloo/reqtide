@@ -56,7 +56,7 @@ jobs:
       - name: Dependency audit
         run: composer audit --abandoned=report
 
-      # Gate G16. The baseline is the highest stable release of the same major version below the tag
+      # The baseline is the highest stable release of the same major version below the tag
       # (tools/select-baseline.sh); the first release of a major version has none. Otherwise the public API of the core
       # package is compared with it. Before 1.0 a difference is reported but does not fail the release (a minor version
       # may break); from 1.0 it fails.

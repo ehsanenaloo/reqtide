@@ -257,8 +257,7 @@ final class MultiProcessTest extends TestCase
             $memoryLast,
         );
 
-        // Throughput depends on the load of the host (19 to over 500 operations in eight seconds were measured), so this
-        // only proves that the workers ran.
+        // Throughput depends on the load of the host, so this only proves that the workers ran.
         self::assertGreaterThan(0, $operations, "the workers did real work ({$counters})");
         self::assertLessThanOrEqual(20, $maxPartitions, $counters);
         self::assertLessThanOrEqual(40, $maxRecords, $counters);
