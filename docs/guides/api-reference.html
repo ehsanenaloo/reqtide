@@ -535,10 +535,11 @@
 }</code></pre>
 <h3 id="error-reasoncode"><code>ReasonCode</code> <small>Enaxon\Reqtide\Error</small></h3>
 <p>The registry of stable reason codes. Keep a <code>default</code> branch when you <code>match</code> over it: new cases may be added.</p>
-<details><summary>Show the 80 cases</summary><pre tabindex="0" role="group" aria-label="Signatures of ReasonCode" data-api="Enaxon\Reqtide\Error\ReasonCode"><code class="language-api"><span class="tk-k">enum</span> ReasonCode: <span class="tk-k">string</span> {
+<details><summary>Show the 81 cases</summary><pre tabindex="0" role="group" aria-label="Signatures of ReasonCode" data-api="Enaxon\Reqtide\Error\ReasonCode"><code class="language-api"><span class="tk-k">enum</span> ReasonCode: <span class="tk-k">string</span> {
     <span class="tk-k">case</span> CircuitOpen = <span class="tk-s">'circuit_open'</span>;
     <span class="tk-k">case</span> CircuitProbeCapacityExhausted = <span class="tk-s">'circuit_probe_capacity_exhausted'</span>;
     <span class="tk-k">case</span> ConcurrencyCapacityExhausted = <span class="tk-s">'concurrency_capacity_exhausted'</span>;
+    <span class="tk-k">case</span> OwnershipLeaseInsufficient = <span class="tk-s">'ownership_lease_insufficient'</span>;
     <span class="tk-k">case</span> CooldownActive = <span class="tk-s">'cooldown_active'</span>;
     <span class="tk-k">case</span> CooldownExceedsDeadline = <span class="tk-s">'cooldown_exceeds_deadline'</span>;
     <span class="tk-k">case</span> RateAccepted = <span class="tk-s">'rate.accepted'</span>;

@@ -13,7 +13,8 @@ use Psr\Http\Message\UriInterface;
  *; neither can be changed here, so a response is always the value the classifier sees.
  *
  * `$clientDefaults` are Guzzle client options, limited to {@see ALLOWED_CLIENT_DEFAULTS}: those that describe the connection,
- * the identity of the caller or the wire format, and are the same for every attempt. Every other option is refused by
+ * the identity of the caller or the wire format, and are the same for every attempt. The default `headers` must not set
+ * `Content-Length` or `Transfer-Encoding`. Every other option is refused by
  * name, because a client default applies to every transfer outside the replay and identity checks and outside the
  * deadline: `delay` would sleep beyond it, `curl` could replace the timeouts and the connection rules of the transport,
  * `query`, `body`, `json`, `form_params`, `multipart` or `cookies` would change or add to what a request sends, `sink`,
@@ -31,6 +32,14 @@ final readonly class GuzzleConfiguration
      * @var list<string>
      */
     public const ALLOWED_CLIENT_DEFAULTS = ['headers', 'auth', 'proxy', 'verify', 'cert', 'ssl_key', 'crypto_method', 'force_ip_resolve', 'version', 'decode_content'];
+
+    /**
+     * Guzzle adds a default header to a request that does not have it, after the length of the body was checked; the cURL
+     * handler then trusts `Content-Length` for large bodies and sends only that many bytes.
+     *
+     * @var list<string>
+     */
+    private const FRAMING_HEADERS = ['content-length', 'transfer-encoding'];
 
     public HttpOutcomeClassifier $classifier;
 
@@ -67,6 +76,13 @@ final readonly class GuzzleConfiguration
                 ));
             }
         }
+        if (is_array($clientDefaults['headers'] ?? null)) {
+            foreach (array_keys($clientDefaults['headers']) as $name) {
+                if (in_array(strtolower((string) $name), self::FRAMING_HEADERS, true)) {
+                    throw new InvalidConfigurationException('A client default header must not set the framing of the body ("Content-Length", "Transfer-Encoding"); the transport derives it from the body that is sent.');
+                }
+            }
+        }
         if ($baseUri !== null) {
             try {
                 $baseUri = is_string($baseUri) ? new Uri($baseUri) : $baseUri;
@@ -83,7 +99,7 @@ final readonly class GuzzleConfiguration
 
     /**
      * The client defaults can hold credentials (Basic and Digest auth, proxy user information, key passphrases, default
-     * Authorization headers). A dump shows only the names of the options, never their values.
+     * Authorization headers). A dump shows only the names of the options, never their values, and the origin of the base URI, never its path, query or fragment.
      *
      * @return array<string, mixed>
      */
@@ -92,9 +108,15 @@ final readonly class GuzzleConfiguration
         return [
             'classifier' => $this->classifier,
             'clientDefaults' => array_map(static fn(mixed $value): string => '***', $this->clientDefaults),
-            'baseUri' => $this->baseUri === null ? null : (string) $this->baseUri->withUserInfo(''),
+            'baseUri' => $this->baseUri === null ? null : self::origin($this->baseUri),
             'credentialHeaders' => $this->credentialHeaders,
         ];
+    }
+
+    /** Scheme, host and port only: a path, query or fragment can carry a token. */
+    private static function origin(UriInterface $uri): string
+    {
+        return (string) $uri->withUserInfo('')->withPath('')->withQuery('')->withFragment('');
     }
 
     /** @return never */

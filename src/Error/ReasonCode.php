@@ -39,6 +39,7 @@ enum ReasonCode: string
     case CircuitOpen = 'circuit_open';
     case CircuitProbeCapacityExhausted = 'circuit_probe_capacity_exhausted';
     case ConcurrencyCapacityExhausted = 'concurrency_capacity_exhausted';
+    case OwnershipLeaseInsufficient = 'ownership_lease_insufficient';
     case CooldownActive = 'cooldown_active';
     case CooldownExceedsDeadline = 'cooldown_exceeds_deadline';
     case RateAccepted = 'rate.accepted';
@@ -173,6 +174,7 @@ enum ReasonCode: string
             self::CircuitOpen => [Category::Admission, Severity::Info, Retryability::AfterWait, Stage::Admission, 'Circuit is open'],
             self::CircuitProbeCapacityExhausted => [Category::Admission, Severity::Info, Retryability::AfterWait, Stage::Admission, 'Circuit probe capacity exhausted'],
             self::ConcurrencyCapacityExhausted => [Category::Admission, Severity::Info, Retryability::Transient, Stage::Admission, 'Concurrency capacity exhausted'],
+            self::OwnershipLeaseInsufficient => [Category::Admission, Severity::Info, Retryability::Transient, Stage::Barrier, 'Held permit would not outlast the attempt'],
             self::CooldownActive => [Category::Admission, Severity::Info, Retryability::AfterWait, Stage::Admission, 'Cooldown is active'],
             self::CooldownExceedsDeadline => [Category::Admission, Severity::Info, Retryability::AfterWait, Stage::Admission, 'Cooldown outlasts the operation deadline'],
             self::RateAccepted => [Category::Admission, Severity::Debug, Retryability::Never, Stage::Admission, 'Rate limit admitted the call'],

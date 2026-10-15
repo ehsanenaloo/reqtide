@@ -340,8 +340,8 @@ business exception: Reqtide\Examples\ErrorHandling\UpstreamTimeout (upstream tim
 
 ### خوب است بدانید
 
-- هیچ‌چیز منتشر نشده است. تگ، ورودی Packagist و مخزن عمومی وجود ندارد و هنوز هیچ اجرای CI انجام نشده است.
-- آزمون نشده: PHP-FPM و وب‌سرورها. پشتیبانی نمی‌شود: Redis Sentinel، Redis Cluster، Valkey، Guzzle 8 و PSR-18.
+- هیچ‌چیز منتشر نشده است. تگ و ورودی Packagist وجود ندارد. کد عمومی است و CI با هر push اجرا می‌شود (GitHub Actions: PHP 8.3 و 8.4 و 8.5، مجموعه‌های Redis، مسیر PHP-FPM، پوشش و آزمون جهش)؛ نتایج در برگهٔ Actions مخزن است.
+- PHP-FPM یک مسیر در CI دارد (PHP 8.4، nginx، شش worker، Redis 8.2.10). آزمون نشده: کلاینت Guzzle زیر FPM، نسخه‌های دیگر PHP زیر FPM، Apache و وب‌سرورهای دیگر. پشتیبانی نمی‌شود: Redis Sentinel، Redis Cluster، Valkey، Guzzle 8 و PSR-18.
 - بستهٔ هسته وضعیت را در یک پروسه نگه می‌دارد. زیر PHP-FPM هر درخواست از صفر شروع می‌کند.
 - callback در حال اجرا قطع نمی‌شود. مهلت بین گام‌ها بررسی می‌شود.
 - اجرای دقیقاً یک‌بار وجود ندارد، و اگر تماسی پیش از ارسال لغو شود، واحد نرخ مصرف‌شده برگردانده نمی‌شود.

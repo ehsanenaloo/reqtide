@@ -66,6 +66,8 @@ final class MemoryRetryBudgetBackend implements RetryBudgetBackend
 
     private readonly int $maxRecords;
 
+    private readonly TombstoneQueue $tombstoneQueue;
+
     public function __construct(
         Clock $clock,
         ?IdentityGenerator $identities = null,
@@ -77,6 +79,7 @@ final class MemoryRetryBudgetBackend implements RetryBudgetBackend
         $this->maxPartitions = MemoryLimits::positive($maxPartitions, 'maxPartitions');
         $this->maxRecords = MemoryLimits::positive($maxRecords, 'maxRecords');
         $this->rotation = new \SplQueue();
+        $this->tombstoneQueue = new TombstoneQueue();
     }
 
     public function capabilities(): StateBackendCapabilities
@@ -114,7 +117,7 @@ final class MemoryRetryBudgetBackend implements RetryBudgetBackend
         $partition = $this->partitions[$key] ?? null;
         if ($partition !== null) {
             $this->assertFingerprint($partition, $policy);
-            $partition->transition($now);
+            $this->transition($key, $partition, $now);
             $this->records -= $partition->pruneTombstones($now, PHP_INT_MAX);
             if (isset($partition->pending[$ownerKey]) || isset($partition->tombstones[$ownerKey])) {
                 throw new InvalidConfigurationException('A reservation owner identity must be unique.');
@@ -196,7 +199,7 @@ final class MemoryRetryBudgetBackend implements RetryBudgetBackend
             if ($partition === null) {
                 continue;
             }
-            $partition->transition($now);
+            $this->transition($key, $partition, $now);
             $count = $partition->pruneTombstones($now, $budget);
             $this->records -= $count;
             $removed += $count;
@@ -247,7 +250,7 @@ final class MemoryRetryBudgetBackend implements RetryBudgetBackend
         }
 
         // Accrue with the OLD pending cost, then expire (including this owner when its lease ended at or before now).
-        $partition->transition($now);
+        $this->transition($policy->identity->key(), $partition, $now);
         $this->records -= $partition->pruneTombstones($now, PHP_INT_MAX);
 
         $ownerKey = $reservation->owner->lowerHex;
@@ -263,10 +266,10 @@ final class MemoryRetryBudgetBackend implements RetryBudgetBackend
                 $partition->balance = min($partition->balance + $pending['cost'], $partition->capacity - $partition->pendingCost);
             }
             $status = $commit ? RetryBudgetFinalizationStatus::Committed : RetryBudgetFinalizationStatus::Released;
-            $partition->tombstones[$ownerKey] = [
-                'status' => $status,
-                'until' => MemoryLimits::saturatingAdd($now, MemoryLimits::TOMBSTONE_RETENTION_NANOSECONDS),
-            ];
+            $until = MemoryLimits::saturatingAdd($now, MemoryLimits::TOMBSTONE_RETENTION_NANOSECONDS);
+            $partition->tombstones[$ownerKey] = ['status' => $status, 'until' => $until];
+            $this->tombstoneQueue->push($policy->identity->key(), $ownerKey, $until);
+            $this->tombstoneQueue->compact($this->isLiveTombstone(...), $this->maxRecords);
             $partition->lastMutation = $now;
 
             return new RetryBudgetFinalizationResult($status);
@@ -317,25 +320,30 @@ final class MemoryRetryBudgetBackend implements RetryBudgetBackend
      */
     private function evictTombstones(): void
     {
-        $heads = [];
-        foreach ($this->partitions as $key => $partition) {
-            $first = array_key_first($partition->tombstones);
-            if ($first !== null) {
-                $heads[(string) $key] = $partition->tombstones[$first]['until'];
+        $this->tombstoneQueue->evict(MemoryLimits::evictionBatch($this->maxRecords), function (string $key, string $owner, int $deadline): bool {
+            if (!$this->isLiveTombstone($key, $owner, $deadline)) {
+                return false;
             }
-        }
-        MemoryLimits::evictOldest($heads, function (string $key): ?int {
-            $partition = $this->partitions[$key];
-            $first = array_key_first($partition->tombstones);
-            if ($first === null) {
-                return null;
-            }
-            unset($partition->tombstones[$first]);
+            unset($this->partitions[$key]->tombstones[$owner]);
             --$this->records;
-            $next = array_key_first($partition->tombstones);
 
-            return $next === null ? null : $partition->tombstones[$next]['until'];
-        }, MemoryLimits::evictionBatch($this->maxRecords));
+            return true;
+        });
+    }
+
+    /** Accrues and expires one partition, and queues the tombstones that expiry made for eviction. */
+    private function transition(string $key, BudgetPartition $partition, int $now): void
+    {
+        $partition->transition($now);
+        foreach ($partition->takeNewTombstones() as [$owner, $until]) {
+            $this->tombstoneQueue->push($key, $owner, $until);
+        }
+        $this->tombstoneQueue->compact($this->isLiveTombstone(...), $this->maxRecords);
+    }
+
+    private function isLiveTombstone(string $key, string $owner, int $deadline): bool
+    {
+        return ($this->partitions[$key]->tombstones[$owner]['until'] ?? null) === $deadline;
     }
 
     private function hasRoom(bool $needsPartition): bool

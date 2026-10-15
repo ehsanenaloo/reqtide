@@ -54,6 +54,9 @@ final class HttpAttemptOperation implements AttemptOperation
         $request = $this->operation->request;
         $verifiedSize = null;
         $this->reference->harvest();
+        if ($this->reference->partial) {
+            throw self::refuse('an earlier attempt sent only part of the body, so the payload of this operation cannot be established; use BodyIntegrity::CallerAsserted to send it again anyway');
+        }
         if ($this->operation->descriptor->safety->kind !== OperationSafetyKind::Unsafe) {
             [$request, $verifiedSize] = $this->replayableRequest($request);
             self::checkIdentity($this->operation, $request);

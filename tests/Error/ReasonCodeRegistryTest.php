@@ -20,7 +20,7 @@ final class ReasonCodeRegistryTest extends TestCase
      * must be appended to this list in the same change.
      */
     private const PUBLISHED = [
-        'circuit_open', 'circuit_probe_capacity_exhausted', 'concurrency_capacity_exhausted', 'cooldown_active',
+        'circuit_open', 'circuit_probe_capacity_exhausted', 'concurrency_capacity_exhausted', 'ownership_lease_insufficient', 'cooldown_active',
         'cooldown_exceeds_deadline', 'rate.accepted', 'rate.cost_exceeds_capacity', 'rate.exhausted',
         'rate.wait_unrepresentable', 'admission_rejected', 'admission_deferred', 'admission_impossible',
         'circuit.threshold_exceeded', 'circuit.probe_failed', 'circuit.probes_succeeded', 'circuit.open_elapsed',

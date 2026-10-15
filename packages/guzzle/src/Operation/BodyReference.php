@@ -6,8 +6,10 @@ namespace Enaxon\Reqtide\Guzzle\Operation;
 
 /**
  * The payload one logical operation is bound to under `BodyIntegrity::Verified`. The reference digest is taken from the
- * first body that was read completely: by the transport while it sent the first attempt (no extra read), or, when that
- * transfer did not read the whole body, at the final check of the next attempt. Every later attempt must match it.
+ * first body that was read completely by the transport while it sent an attempt (no extra read). When a transfer read
+ * only part of the body, the payload of the operation can no longer be established: {@see $partial} is set and the
+ * operation is not sent again. When a transfer read no byte at all, nothing of the body was transmitted and the next
+ * attempt takes the reference. Every later attempt must match the reference.
  *
  * @internal
  */
@@ -17,6 +19,9 @@ final class BodyReference
 
     /** True once an attempt handed its body to the transport. */
     public bool $sent = false;
+
+    /** True when a transfer took part of the body but not all of it, so no digest of the whole payload exists. */
+    public bool $partial = false;
 
     private ?DigestingStream $pending = null;
 
@@ -31,6 +36,9 @@ final class BodyReference
     {
         if ($this->digest === null && $this->pending !== null) {
             $this->digest = $this->pending->completeDigest();
+            if ($this->digest === null && $this->pending->partiallyRead()) {
+                $this->partial = true;
+            }
         }
         $this->pending = null;
     }

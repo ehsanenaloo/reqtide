@@ -31,6 +31,10 @@ final class DigestingStream implements StreamInterface
 
     private ?string $digest = null;
 
+    private bool $touched = false;
+
+    private bool $overran = false;
+
     public function __construct(private readonly StreamInterface $stream, private readonly int $expectedSize, private readonly ?string $expectedDigest = null)
     {
         $this->context = hash_init('sha256');
@@ -53,12 +57,25 @@ final class DigestingStream implements StreamInterface
         return $this->valid && $this->read === $this->expectedSize ? $this->digest : null;
     }
 
+    /**
+     * True when the transport took at least one byte but never the whole body in order from its start. A body that
+     * turned out longer than its size is not partial; the check of the next attempt reports that.
+     */
+    public function partiallyRead(): bool
+    {
+        return $this->touched && !$this->overran && $this->completeDigest() === null;
+    }
+
     public function read(int $length): string
     {
         $chunk = $this->stream->read($length);
+        if ($chunk !== '') {
+            $this->touched = true;
+        }
         if ($this->valid && $chunk !== '') {
             $this->read += strlen($chunk);
             if ($this->read > $this->expectedSize) {
+                $this->overran = true;
                 $this->valid = false;
                 $this->digest = null;
             } else {

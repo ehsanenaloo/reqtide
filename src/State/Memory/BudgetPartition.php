@@ -25,6 +25,9 @@ final class BudgetPartition
     /** @var array<string, array{status: RetryBudgetFinalizationStatus, until: int}> owner hex => terminal record */
     public array $tombstones = [];
 
+    /** @var list<array{string, int}> owner key and deadline of tombstones made by {@see expire()} and not yet taken */
+    private array $newTombstones = [];
+
     public int $pendingCost = 0;
 
     public int $remainder = 0;
@@ -106,10 +109,9 @@ final class BudgetPartition
             unset($this->pending[$first]);
             $this->pendingCost -= $cost;
             $this->balance = min($this->balance + $cost, $this->capacity - $this->pendingCost);
-            $this->tombstones[(string) $first] = [
-                'status' => RetryBudgetFinalizationStatus::Expired,
-                'until' => MemoryLimits::saturatingAdd($now, MemoryLimits::TOMBSTONE_RETENTION_NANOSECONDS),
-            ];
+            $until = MemoryLimits::saturatingAdd($now, MemoryLimits::TOMBSTONE_RETENTION_NANOSECONDS);
+            $this->tombstones[(string) $first] = ['status' => RetryBudgetFinalizationStatus::Expired, 'until' => $until];
+            $this->newTombstones[] = [(string) $first, $until];
             $this->lastMutation = $now;
         }
     }
@@ -119,6 +121,19 @@ final class BudgetPartition
     {
         $this->accrue($now);
         $this->expire($now);
+    }
+
+    /**
+     * The tombstones that expiry made since the last call, oldest first, for the backend's eviction queue.
+     *
+     * @return list<array{string, int}>
+     */
+    public function takeNewTombstones(): array
+    {
+        $taken = $this->newTombstones;
+        $this->newTombstones = [];
+
+        return $taken;
     }
 
     /** @return int removed tombstones, at most $limit */

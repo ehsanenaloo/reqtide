@@ -15,6 +15,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The full CI matrix (all PHP versions, the Redis, clock and TLS suites, the PHP-FPM lane, coverage and mutation testing)
+  # runs again for the commit of the tag. The draft is built only when it passes.
+  ci:
+    if: github.repository == 'ehsanenaloo/reqtide'
+    name: CI for the tagged commit
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   verify:
     if: github.repository == 'ehsanenaloo/reqtide'
     name: Verify tag
@@ -47,17 +56,18 @@ jobs:
       - name: Dependency audit
         run: composer audit --abandoned=report
 
-      # Gate G16. The first tag has no earlier version to compare with. From the second tag on, the public API of the core
-      # package is compared with the previous tag. Before 1.0 a difference is reported but does not fail the release (a minor
-      # version may break); from 1.0 it fails.
-      - name: API compatibility with the previous tag
+      # Gate G16. The baseline is the highest stable release of the same major version below the tag
+      # (tools/select-baseline.sh); the first release of a major version has none. Otherwise the public API of the core
+      # package is compared with it. Before 1.0 a difference is reported but does not fail the release (a minor version
+      # may break); from 1.0 it fails.
+      - name: API compatibility with the baseline release
         env:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          previous="$(git tag --list 'v*' --sort=-v:refname | grep -vxF "${TAG}" | head -n 1 || true)"
+          previous="$(bash tools/select-baseline.sh "${TAG}")"
           if [ -z "${previous}" ]; then
-            echo "First tag: there is no earlier version to compare with."
+            echo "No earlier stable release of this major version: nothing to compare with."
             exit 0
           fi
           composer global require --no-interaction --no-progress roave/backward-compatibility-check
@@ -73,7 +83,7 @@ jobs:
   draft:
     if: github.repository == 'ehsanenaloo/reqtide'
     name: Build archives and draft release
-    needs: verify
+    needs: [ci, verify]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

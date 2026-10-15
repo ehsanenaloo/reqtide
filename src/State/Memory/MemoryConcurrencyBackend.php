@@ -63,6 +63,8 @@ final class MemoryConcurrencyBackend implements ConcurrencyBackend
 
     private readonly int $maxRecords;
 
+    private readonly TombstoneQueue $tombstoneQueue;
+
     public function __construct(
         Clock $clock,
         ?IdentityGenerator $identities = null,
@@ -74,6 +76,7 @@ final class MemoryConcurrencyBackend implements ConcurrencyBackend
         $this->maxPartitions = MemoryLimits::positive($maxPartitions, 'maxPartitions');
         $this->maxRecords = MemoryLimits::positive($maxRecords, 'maxRecords');
         $this->rotation = new \SplQueue();
+        $this->tombstoneQueue = new TombstoneQueue();
     }
 
     public function capabilities(): StateBackendCapabilities
@@ -152,7 +155,10 @@ final class MemoryConcurrencyBackend implements ConcurrencyBackend
             }
             // The owner's slot becomes its tombstone in place: no new allocation, so release cannot hit a ceiling.
             unset($partition->owners[$ownerKey]);
-            $partition->tombstones[$ownerKey] = MemoryLimits::saturatingAdd($now, MemoryLimits::TOMBSTONE_RETENTION_NANOSECONDS);
+            $deadline = MemoryLimits::saturatingAdd($now, MemoryLimits::TOMBSTONE_RETENTION_NANOSECONDS);
+            $partition->tombstones[$ownerKey] = $deadline;
+            $this->tombstoneQueue->push($policy->identity->key(), $ownerKey, $deadline);
+            $this->tombstoneQueue->compact($this->isLiveTombstone(...), $this->maxRecords);
 
             return new FinalizationResult(FinalizationStatus::Applied);
         }
@@ -229,31 +235,24 @@ final class MemoryConcurrencyBackend implements ConcurrencyBackend
      */
     private function evictTombstones(string $keep): void
     {
-        $heads = [];
-        foreach ($this->partitions as $key => $partition) {
-            $first = array_key_first($partition->tombstones);
-            if ($first !== null) {
-                $heads[(string) $key] = $partition->tombstones[$first];
+        $this->tombstoneQueue->evict(MemoryLimits::evictionBatch($this->maxRecords), function (string $key, string $owner, int $deadline) use ($keep): bool {
+            if (!$this->isLiveTombstone($key, $owner, $deadline)) {
+                return false;
             }
-        }
-        MemoryLimits::evictOldest($heads, function (string $key) use ($keep): ?int {
             $partition = $this->partitions[$key];
-            $first = array_key_first($partition->tombstones);
-            if ($first === null) {
-                return null;
-            }
-            unset($partition->tombstones[$first]);
+            unset($partition->tombstones[$owner]);
             --$this->records;
-            $next = array_key_first($partition->tombstones);
-            if ($next !== null) {
-                return $partition->tombstones[$next];
-            }
             if ($key !== $keep && $partition->isEmpty()) {
                 unset($this->partitions[$key]);
             }
 
-            return null;
-        }, MemoryLimits::evictionBatch($this->maxRecords));
+            return true;
+        });
+    }
+
+    private function isLiveTombstone(string $key, string $owner, int $deadline): bool
+    {
+        return ($this->partitions[$key]->tombstones[$owner] ?? null) === $deadline;
     }
 
     private function hasRoom(bool $needsPartition): bool

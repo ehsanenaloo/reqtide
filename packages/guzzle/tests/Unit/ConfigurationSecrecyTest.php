@@ -94,4 +94,63 @@ final class ConfigurationSecrecyTest extends TestCase
 
         self::assertStringNotContainsString('unique-credential-key-value', print_r($operation, true));
     }
+
+    private const OPERATION_SECRETS = ['uri-user-secret', 'uri-pass-secret', 'path-token-secret', 'query-token-secret', 'fragment-secret', 'bearer-header-secret', 'cookie-secret', 'custom-key-secret', 'identity-secret', 'closure-capture-secret', 'body-secret'];
+
+    private static function assertNoOperationSecret(string $text): void
+    {
+        foreach (self::OPERATION_SECRETS as $secret) {
+            self::assertStringNotContainsString($secret, $text, 'the dump shows ' . $secret);
+        }
+    }
+
+    private static function secretOperation(): HttpOperation
+    {
+        $captured = 'closure-capture-secret';
+        $request = new Request(
+            'POST',
+            'https://uri-user-secret:uri-pass-secret@api.example.com/path-token-secret/x?token=query-token-secret#fragment-secret',
+            ['Authorization' => 'Bearer bearer-header-secret', 'Cookie' => 'sid=cookie-secret', 'X-Api-Key' => 'custom-key-secret', 'Idempotency-Key' => 'identity-secret'],
+            'body-secret',
+        );
+
+        return HttpOperation::idempotentMutation(
+            $request,
+            'orders.create',
+            'identity-secret',
+            'tenant-a',
+            'The provider returns the first result for a repeated key.',
+            Duration::seconds(60),
+            bodyFactory: static fn() => \GuzzleHttp\Psr7\Utils::streamFor($captured),
+        );
+    }
+
+    public function testADumpOfAnOperationShowsNoRequestHeaderUriBodyIdentityOrClosureData(): void
+    {
+        $operation = self::secretOperation();
+
+        self::assertNoOperationSecret(print_r($operation, true));
+        ob_start();
+        var_dump($operation);
+        $dump = (string) ob_get_clean();
+        self::assertNoOperationSecret($dump);
+        self::assertStringContainsString('orders.create', $dump, 'the dump still shows the operation group');
+        self::assertStringContainsString('POST', $dump);
+    }
+
+    public function testAnOperationCannotBeSerialized(): void
+    {
+        $this->expectException(\LogicException::class);
+        serialize(self::secretOperation());
+    }
+
+    public function testADumpOfTheConfigurationShowsOnlyTheOriginOfTheBaseUri(): void
+    {
+        $configuration = new GuzzleConfiguration(null, [], 'https://user:pw@api.example.com:8443/path-token-secret/?token=query-token-secret#fragment-secret');
+
+        $dump = print_r($configuration, true);
+        self::assertNoOperationSecret($dump);
+        self::assertStringNotContainsString('pw@', $dump);
+        self::assertStringContainsString('https://api.example.com:8443', $dump);
+    }
 }

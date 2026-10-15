@@ -66,17 +66,32 @@ final readonly class HttpOperation
         $this->bodyFactory = $bodyFactory;
     }
 
-    /** The key of the credential fingerprint is never part of a dump of the operation. */
+    /**
+     * A dump shows only what is not secret: the method, the fingerprint of the origin, the operation group, the kind of
+     * replay safety and the settings of the body check. It never shows the request (URI, headers, body), the identity of
+     * the replay contract, the credential key or what the body factory captured. `var_export` and reflection are not
+     * covered by this method.
+     *
+     * @return array<string, mixed>
+     */
     public function __debugInfo(): array
     {
         return [
-            'request' => $this->request,
-            'descriptor' => $this->descriptor,
-            'bodyFactory' => $this->bodyFactory,
+            'method' => $this->descriptor->normalizedMethod,
+            'originFingerprint' => $this->descriptor->originFingerprint,
+            'operationGroup' => $this->descriptor->operationGroup,
+            'safety' => $this->descriptor->safety->kind,
+            'hasBodyFactory' => $this->bodyFactory !== null,
             'identityHeader' => $this->identityHeader,
             'bodyIntegrity' => $this->bodyIntegrity,
             'maxVerifiedBodyBytes' => $this->maxVerifiedBodyBytes,
         ];
+    }
+
+    /** @return never */
+    public function __serialize(): array
+    {
+        throw new \LogicException('An operation holds a request with its credentials and is not serializable.');
     }
 
     /**

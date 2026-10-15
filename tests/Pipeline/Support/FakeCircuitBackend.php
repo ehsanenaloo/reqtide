@@ -25,6 +25,8 @@ final class FakeCircuitBackend extends FakeBackend implements CircuitBackend
 {
     public CircuitAdmissionStatus $status = CircuitAdmissionStatus::Accepted;
 
+    public CircuitPermitKind $permitKind = CircuitPermitKind::ClosedSample;
+
     public ?\Throwable $acquireFailure = null;
 
     public ?\Throwable $recordFailure = null;
@@ -72,7 +74,7 @@ final class FakeCircuitBackend extends FakeBackend implements CircuitBackend
                 new Generation(1),
                 $attempt,
                 $owner,
-                CircuitPermitKind::ClosedSample,
+                $this->permitKind,
                 $policy->permitLease,
                 BackendExpiry::local(1),
             ),

@@ -73,37 +73,6 @@ final class MemoryLimits
         return max(1, min(64, intdiv($maxRecords, 16)));
     }
 
-    /**
-     * Evicts up to `$count` tombstones in globally oldest-first order across partitions. The caller supplies, per
-     * partition holding tombstones, the deadline of its oldest tombstone, and a closure that removes that
-     * partition's oldest tombstone and returns the deadline of its next oldest (null when it has none). Only
-     * nonprotective tombstones may be offered; protective state is never passed here.
-     *
-     * @param array<string, int> $heads partition key => deadline of its oldest tombstone
-     * @param \Closure(string): ?int $evictOldest
-     * @return int number of evicted tombstones
-     */
-    public static function evictOldest(array $heads, \Closure $evictOldest, int $count): int
-    {
-        /** @var \SplPriorityQueue<int, string> $queue */
-        $queue = new \SplPriorityQueue();
-        foreach ($heads as $key => $deadline) {
-            $queue->insert((string) $key, -$deadline);
-        }
-        $evicted = 0;
-        while ($evicted < $count && !$queue->isEmpty()) {
-            /** @var string $key */
-            $key = $queue->extract();
-            $next = $evictOldest($key);
-            ++$evicted;
-            if ($next !== null) {
-                $queue->insert($key, -$next);
-            }
-        }
-
-        return $evicted;
-    }
-
     /** Checked `now + duration`; overflow is a typed configuration failure, never a wrap. */
     public static function checkedAdd(int $nanoseconds, int $duration): int
     {

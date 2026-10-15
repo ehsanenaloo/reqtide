@@ -16,6 +16,7 @@ use Enaxon\Reqtide\State\ConcurrencyPermit;
 use Enaxon\Reqtide\State\FinalizationStatus;
 use Enaxon\Reqtide\State\Memory\MemoryConcurrencyBackend;
 use Enaxon\Reqtide\State\Memory\MemoryRetryBudgetBackend;
+use Enaxon\Reqtide\State\Memory\TombstoneQueue;
 use Enaxon\Reqtide\State\RetryBudgetFinalizationStatus;
 use Enaxon\Reqtide\State\RetryBudgetReservation;
 use Enaxon\Reqtide\State\RetryReservationStatus;
@@ -59,7 +60,36 @@ final class TombstoneEvictionTest extends TestCase
         return $value;
     }
 
+    private function queueSize(object $backend): int
+    {
+        $queue = (new \ReflectionProperty($backend, 'tombstoneQueue'))->getValue($backend);
+        self::assertInstanceOf(TombstoneQueue::class, $queue);
+
+        return $queue->size();
+    }
+
     // ---- concurrency -------------------------------------------------------------------------------
+
+    public function testTombstonesThatExpireInsteadOfBeingEvictedDoNotGrowTheQueueWithoutBound(): void
+    {
+        $clock = new FakeClock(0);
+        $ids = new MemoryTestSupport();
+        $concurrency = new MemoryConcurrencyBackend($clock, $ids, 10, 50);
+        $budget = new MemoryRetryBudgetBackend($clock, $ids, 10, 50);
+        $concurrencyPolicy = $this->concurrencyPolicy('expiring');
+        $budgetPolicy = $this->budgetPolicy();
+
+        for ($i = 0; $i < 3_000; ++$i) {
+            $permit = $this->acquire($concurrency, $ids, $concurrencyPolicy);
+            $concurrency->release($concurrencyPolicy, $permit, $ids->command());
+            $reservation = $this->reserve($budget, $ids, $budgetPolicy);
+            $budget->release($budgetPolicy, $reservation, $ids->command());
+            $clock->now += 10 * self::SECOND; // every tombstone is long expired before the next cycle
+        }
+
+        self::assertLessThanOrEqual(2 * 50 + 64 + 1, $this->queueSize($concurrency));
+        self::assertLessThanOrEqual(2 * 50 + 64 + 1, $this->queueSize($budget));
+    }
 
     public function testConcurrencyChurnInsideRetentionNeverExhaustsRecords(): void
     {
@@ -84,6 +114,7 @@ final class TombstoneEvictionTest extends TestCase
 
         self::assertLessThan(120 * self::SECOND, $clock->now, 'the whole churn fits inside the tombstone retention');
         self::assertLessThanOrEqual(20_000, $this->records($backend));
+        self::assertLessThanOrEqual(2 * 20_000 + 64 + 1, $this->queueSize($backend), 'the eviction queue follows the record ceiling, not the history');
         self::assertSame(FinalizationStatus::StaleOwnership, $backend->release($policy, $first, $ids->command())->status, 'evicted tombstone => stale');
         self::assertSame(FinalizationStatus::AlreadyFinalized, $backend->release($policy, $last, $ids->command())->status, 'newest tombstone survives');
         self::assertSame(FinalizationStatus::Applied, $backend->release($guardPolicy, $guard, $ids->command())->status, 'an active owner is never evicted');
@@ -215,6 +246,7 @@ final class TombstoneEvictionTest extends TestCase
 
         self::assertLessThan(120 * self::SECOND, $clock->now);
         self::assertLessThanOrEqual(20_000, $this->records($backend));
+        self::assertLessThanOrEqual(2 * 20_000 + 64 + 1, $this->queueSize($backend));
         self::assertSame(RetryBudgetFinalizationStatus::StaleOwnership, $backend->commit($policy, $first, $ids->command())->status, 'evicted tombstone must never allow a late commit');
         self::assertSame(RetryBudgetFinalizationStatus::AlreadyReleased, $backend->release($policy, $last, $ids->command())->status);
         self::assertSame(RetryBudgetFinalizationStatus::Committed, $backend->commit($guardPolicy, $guard, $ids->command())->status, 'a pending reservation is never evicted');
@@ -279,6 +311,7 @@ final class TombstoneEvictionTest extends TestCase
 
         self::assertLessThan(120 * self::SECOND, $rig->clock->now);
         self::assertLessThanOrEqual(20_000, $this->records($rig->backend));
+        self::assertLessThanOrEqual(2 * 20_000 + 64 + 1, $this->queueSize($rig->backend));
         self::assertSame(FinalizationStatus::StaleOwnership, $rig->record($policy, $first, CircuitVerdict::Failure), 'evicted tombstone must never apply a late failure');
         self::assertSame(FinalizationStatus::AlreadyFinalized, $rig->record($policy, $last, CircuitVerdict::Success));
         self::assertSame(CircuitAdmissionStatus::Open, $rig->status($other), 'Open state survives record pressure');

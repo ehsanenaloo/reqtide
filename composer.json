@@ -97,16 +97,19 @@
             "@php tools/build-docs-index.php --check",
             "@php tools/check-docs.php"
         ],
+        "test:tools": "bash tools/test-select-baseline.sh",
         "check": [
             "@validate:manifest",
             "@cs",
             "@stan",
-            "@test"
+            "@test",
+            "@test:tools"
         ]
     },
     "scripts-descriptions": {
         "check": "Run manifest validation, style, static analysis and tests",
         "test": "Run the PHPUnit suites that need no external service (core, testing, redis-unit)",
+        "test:tools": "Check tools/select-baseline.sh (the release compatibility baseline) against fixed tag sets",
         "test:redis": "Run the Redis integration suite against the server named by RT_REDIS_HOST (skips with a reason when unset, fails when RT_REQUIRE_REDIS=1)",
         "test:redis-tls": "Run the TLS suite against the Redis server named by RT_REDIS_HOST, with the throwaway CA named by RT_TLS_CA",
         "check:redis-tls": "Start Redis 7.4.11 and 8.2.10 with TLS in Docker (compose profile redis-tls) and run the TLS suite against each",

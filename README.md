@@ -340,7 +340,7 @@ These are local runs in Docker containers, on the command line.
 
 ### Good to know
 
-- Nothing is released. There is no tag, no Packagist entry and no public repository, and no CI run has happened yet.
+- Nothing is released. There is no tag and no Packagist entry. The code is public and CI runs on every push (GitHub Actions: PHP 8.3, 8.4 and 8.5, the Redis suites, the PHP-FPM lane, coverage and mutation testing); the results are on the Actions tab of the repository.
 - PHP-FPM has one CI lane (PHP 8.4, nginx, six workers, Redis 8.2.10). Not tested: the Guzzle client under FPM, other PHP versions under FPM, Apache and other web servers. Not supported: Redis Sentinel, Redis Cluster, Valkey, Guzzle 8 and PSR-18.
 - The core package keeps its state in one process. Under PHP-FPM every request starts fresh.
 - A running callback is not interrupted. The deadline is checked between steps.

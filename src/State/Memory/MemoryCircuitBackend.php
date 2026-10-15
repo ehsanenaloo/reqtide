@@ -79,6 +79,8 @@ final class MemoryCircuitBackend implements CircuitBackend
     private array $keyIndex = [];
 
     private int $records = 0;
+
+    private readonly TombstoneQueue $tombstoneQueue;
     private int $cursor = 0;
     private int $highWater = 0;
 
@@ -101,6 +103,7 @@ final class MemoryCircuitBackend implements CircuitBackend
         if ($maxPartitions < 1 || $maxRecords < 1) {
             throw new InvalidConfigurationException('Partition and record ceilings must be positive.');
         }
+        $this->tombstoneQueue = new TombstoneQueue();
     }
 
     public function capabilities(): StateBackendCapabilities
@@ -311,7 +314,7 @@ final class MemoryCircuitBackend implements CircuitBackend
         $closedKind = $owner->kind === CircuitPermitKind::ClosedSample;
         if (($closedKind && $part->phase !== CircuitPartition::CLOSED) || (!$closedKind && $part->phase !== CircuitPartition::HALF_OPEN)) {
             $part->lastActivity = $now;
-            $this->consume($part, $ownerKey, $owner, $now);
+            $this->consume($part, $policy->identity->key(), $ownerKey, $owner, $now);
 
             return $this->result(FinalizationStatus::StaleOwnership);
         }
@@ -328,7 +331,7 @@ final class MemoryCircuitBackend implements CircuitBackend
         }
 
         $part->lastActivity = $now;
-        $this->consume($part, $ownerKey, $owner, $now);
+        $this->consume($part, $policy->identity->key(), $ownerKey, $owner, $now);
 
         if (!$counts) {
             $this->settleHalfOpen($part);
@@ -356,7 +359,7 @@ final class MemoryCircuitBackend implements CircuitBackend
     }
 
     /** Moves an active owner into a 120 second tombstone; the record slot it held is reused. */
-    private function consume(CircuitPartition $part, string $ownerKey, CircuitOwner $owner, int $now): void
+    private function consume(CircuitPartition $part, string $partitionKey, string $ownerKey, CircuitOwner $owner, int $now): void
     {
         unset($part->owners[$ownerKey]);
         if ($owner->kind === CircuitPermitKind::HalfOpenProbe) {
@@ -368,6 +371,8 @@ final class MemoryCircuitBackend implements CircuitBackend
         }
         $until = $now > PHP_INT_MAX - self::RETENTION_NANOSECONDS ? PHP_INT_MAX : $now + self::RETENTION_NANOSECONDS;
         $part->tombstones[$ownerKey] = [$owner->attemptHex, $owner->generation, $until];
+        $this->tombstoneQueue->push($partitionKey, $ownerKey, $until);
+        $this->tombstoneQueue->compact($this->isLiveTombstone(...), $this->maxRecords);
     }
 
     /**
@@ -553,25 +558,22 @@ final class MemoryCircuitBackend implements CircuitBackend
      */
     private function evictTombstones(): void
     {
-        $heads = [];
-        foreach ($this->partitions as $key => $part) {
-            $first = array_key_first($part->tombstones);
-            if ($first !== null) {
-                $heads[(string) $key] = $part->tombstones[$first][2];
+        $this->tombstoneQueue->evict(MemoryLimits::evictionBatch($this->maxRecords), function (string $key, string $owner, int $deadline): bool {
+            if (!$this->isLiveTombstone($key, $owner, $deadline)) {
+                return false;
             }
-        }
-        MemoryLimits::evictOldest($heads, function (string $key): ?int {
-            $part = $this->partitions[$key];
-            $first = array_key_first($part->tombstones);
-            if ($first === null) {
-                return null;
-            }
-            unset($part->tombstones[$first]);
+            unset($this->partitions[$key]->tombstones[$owner]);
             --$this->records;
-            $next = array_key_first($part->tombstones);
 
-            return $next === null ? null : $part->tombstones[$next][2];
-        }, MemoryLimits::evictionBatch($this->maxRecords));
+            return true;
+        });
+    }
+
+    private function isLiveTombstone(string $key, string $owner, int $deadline): bool
+    {
+        $part = $this->partitions[$key] ?? null;
+
+        return $part !== null && ($part->tombstones[$owner][2] ?? null) === $deadline;
     }
 
     private function ensurePartitionRoom(): void

@@ -81,34 +81,4 @@ final class MemoryLimitsTest extends TestCase
         self::assertSame(64, MemoryLimits::evictionBatch(65 * 16));
         self::assertSame(64, MemoryLimits::evictionBatch(20_000));
     }
-
-    public function testEvictOldestTakesTheGloballyOldestHeadsAndRequeuesTheNextHeadOfThePartitionItCameFrom(): void
-    {
-        // Partition p holds tombstones expiring at 1 and 5; q holds one expiring at 3. Oldest first: p@1, q@3, p@5.
-        $remaining = ['p' => [1, 5], 'q' => [3]];
-        $order = [];
-        $evict = static function (string $key) use (&$remaining, &$order): ?int {
-            $deadline = array_shift($remaining[$key]);
-            $order[] = $key . '@' . $deadline;
-
-            return $remaining[$key][0] ?? null;
-        };
-
-        self::assertSame(3, MemoryLimits::evictOldest(['p' => 1, 'q' => 3], $evict, 10));
-        self::assertSame(['p@1', 'q@3', 'p@5'], $order);
-    }
-
-    public function testEvictOldestStopsAtTheRequestedCount(): void
-    {
-        $remaining = ['p' => [1, 2, 3]];
-        $evict = static function (string $key) use (&$remaining): ?int {
-            array_shift($remaining[$key]);
-
-            return $remaining[$key][0] ?? null;
-        };
-
-        self::assertSame(2, MemoryLimits::evictOldest(['p' => 1], $evict, 2));
-        self::assertSame([3], $remaining['p']);
-        self::assertSame(0, MemoryLimits::evictOldest([], $evict, 5));
-    }
 }

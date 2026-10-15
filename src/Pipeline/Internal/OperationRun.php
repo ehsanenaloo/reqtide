@@ -53,6 +53,7 @@ use Enaxon\Reqtide\Runtime\AttemptOperation;
 use Enaxon\Reqtide\Runtime\PreparedAttempt;
 use Enaxon\Reqtide\Runtime\SettlementObservation;
 use Enaxon\Reqtide\State\CircuitAdmissionStatus;
+use Enaxon\Reqtide\State\CircuitPermitKind;
 use Enaxon\Reqtide\State\CircuitTransition;
 use Enaxon\Reqtide\State\ConcurrencyAdmissionStatus;
 use Enaxon\Reqtide\State\CooldownStatus;
@@ -347,6 +348,8 @@ final class OperationRun
                 $this->requireAllowance($remaining);
             }
 
+            $this->requireOwnershipFor($held, $this->definition->attempt->maximumDuration->min($remaining));
+
             // Stage 8/9: dispatch and settlement observation.
             $phase = Stage::Dispatch;
             $dispatchContext = $this->attemptContext($attemptId, $number, $remaining);
@@ -561,6 +564,7 @@ final class OperationRun
         if ($backend === null || $policy === null) {
             return;
         }
+        $requestedAt = $this->readClockBeforeRequest();
         try {
             $admission = $backend->acquire($policy, $attemptId, $this->ids->owner(), $this->ids->command());
         } catch (\Throwable $raw) {
@@ -576,6 +580,7 @@ final class OperationRun
             throw new AdmissionRejectedException(new AdmissionDecision(AdmissionStatus::Rejected, $reason->value, null, $wait), $this->lastBusinessException());
         }
         $held->circuit = $admission->permit;
+        $held->circuitRequestedAt = $requestedAt;
     }
 
     private function acquireConcurrency(HeldOwnership $held): void
@@ -585,6 +590,7 @@ final class OperationRun
         if ($backend === null || $policy === null) {
             return;
         }
+        $requestedAt = $this->readClockBeforeRequest();
         try {
             $admission = $backend->acquire($policy, $this->ids->owner(), $this->ids->command());
         } catch (\Throwable $raw) {
@@ -598,6 +604,58 @@ final class OperationRun
             throw new AdmissionRejectedException(new AdmissionDecision(AdmissionStatus::Rejected, $reason->value, null, null), $this->lastBusinessException());
         }
         $held->concurrency = $admission->permit;
+        $held->concurrencyRequestedAt = $requestedAt;
+    }
+
+    /**
+     * The monotonic reading taken before a permit is requested. The backend starts the lease at some moment after the
+     * request was sent, never before, so a lease measured from this reading is never overestimated.
+     *
+     * @throws ClockFailureException
+     */
+    private function readClockBeforeRequest(): int
+    {
+        try {
+            return $this->readClock();
+        } catch (ClockFailureException $failure) {
+            throw $failure;
+        } catch (\Throwable $failure) {
+            throw new ClockFailureException('The clock could not be read.', 0, $failure);
+        }
+    }
+
+    /**
+     * Last local check before dispatch: a permit that limits concurrent work (the concurrency permit and a half-open probe)
+     * must still be valid for the whole attempt, with the clock resolution of its backend as the smallest margin. A permit
+     * that would not outlast the attempt may already have been handed to another worker, so the attempt is refused and
+     * everything it holds is released. The check is local and conservative; it is not a fencing token, and a pause after
+     * it cannot be seen. A closed-circuit sample limits nothing and is not checked.
+     *
+     * @throws AdmissionRejectedException
+     * @throws ClockFailureException
+     */
+    private function requireOwnershipFor(HeldOwnership $held, Duration $attemptBudget): void
+    {
+        $checks = [];
+        if ($held->concurrency !== null && $held->concurrencyRequestedAt !== null && $this->env->concurrency !== null) {
+            $checks[] = ['concurrency', $held->concurrency->lease, $held->concurrencyRequestedAt, $this->env->concurrency->capabilities()->clockResolution];
+        }
+        if ($held->circuit !== null && $held->circuit->kind === CircuitPermitKind::HalfOpenProbe && $held->circuitRequestedAt !== null && $this->env->circuit !== null) {
+            $checks[] = ['circuit', $held->circuit->lease, $held->circuitRequestedAt, $this->env->circuit->capabilities()->clockResolution];
+        }
+        if ($checks === []) {
+            return;
+        }
+        $now = $this->readClock();
+        foreach ($checks as [$kind, $lease, $requestedAt, $resolution]) {
+            $left = $lease->nanoseconds - max(0, $now - $requestedAt);
+            if ($left > $attemptBudget->nanoseconds && $left - $attemptBudget->nanoseconds > $resolution->nanoseconds) {
+                continue;
+            }
+            $reason = ReasonCode::OwnershipLeaseInsufficient;
+            $this->emit(fn(): Event => new AdmissionRejected($this->context->operationId, $this->definition->profileVersion, $kind, $reason->value));
+            throw new AdmissionRejectedException(new AdmissionDecision(AdmissionStatus::Rejected, $reason->value, null, null), $this->lastBusinessException());
+        }
     }
 
     private function admitCooldownAndRate(HeldOwnership $held): void

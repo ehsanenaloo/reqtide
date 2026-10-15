@@ -450,6 +450,80 @@ final class HttpAttemptOperationTest extends TestCase
         self::assertCount(2, $this->sent);
     }
 
+    /** @return \Closure(RequestInterface): ResponseInterface a send that reads only a prefix of the body, as an interrupted upload does */
+    private function prefixSender(int $prefixBytes): \Closure
+    {
+        return function (RequestInterface $request) use ($prefixBytes): ResponseInterface {
+            $body = $request->getBody();
+            $body->rewind();
+            $this->transmitted[] = $body->read($prefixBytes);
+            $this->sent[] = $request;
+
+            return new Response(503);
+        };
+    }
+
+    public function testAfterAPartialSendTheRetryOfAChangedBodyOfTheSameSizeIsRefused(): void
+    {
+        $bodies = [str_repeat('a', 2_000_000), str_repeat('b', 2_000_000)];
+        $calls = 0;
+        $factory = static function () use ($bodies, &$calls): StreamInterface {
+            return Utils::streamFor($bodies[min($calls++, 1)]);
+        };
+        $attempt = $this->post($bodies[0], $factory)->attemptOperation($this->prefixSender(100_000));
+        $this->attemptOnce($attempt);
+
+        $reason = $this->refusalOf($attempt);
+
+        self::assertStringContainsString('only part of the body', $reason);
+        self::assertCount(1, $this->sent, 'the second attempt was not sent');
+    }
+
+    public function testAfterAPartialSendEvenTheSameBodyIsNotRetriedBecauseItsContentCannotBeVerified(): void
+    {
+        $body = Utils::streamFor(str_repeat('a', 2_000_000));
+        $attempt = $this->post($body)->attemptOperation($this->prefixSender(100_000));
+        $this->attemptOnce($attempt);
+
+        self::assertStringContainsString('only part of the body', $this->refusalOf($attempt));
+    }
+
+    public function testAfterAPartialSendACallerAssertedBodyIsStillRetried(): void
+    {
+        $body = Utils::streamFor(str_repeat('a', 2_000_000));
+        $attempt = $this->post($body, null, 'key-1', BodyIntegrity::CallerAsserted)->attemptOperation($this->prefixSender(100_000));
+        $this->attemptOnce($attempt);
+
+        $this->attemptOnce($attempt);
+
+        self::assertCount(2, $this->sent);
+    }
+
+    public function testAfterASendThatReadNoByteTheRetryStillTakesTheReference(): void
+    {
+        $sender = function (RequestInterface $request): ResponseInterface {
+            $this->sent[] = $request;
+
+            return new Response(503);
+        };
+        $attempt = $this->post(str_repeat('a', 2_000_000))->attemptOperation($sender);
+        $this->attemptOnce($attempt);
+
+        $this->attemptOnce($attempt);
+
+        self::assertCount(2, $this->sent);
+    }
+
+    public function testAfterAFullReadFollowedByALostResponseTheRetryIsVerifiedAgainstTheFullDigest(): void
+    {
+        $body = new MutableBodyStream(str_repeat('a', 2_000_000));
+        $attempt = $this->post($body)->attemptOperation($this->sender());
+        $this->attemptOnce($attempt);
+        $body->replace(str_repeat('b', 2_000_000));
+
+        self::assertStringContainsString('content changed', $this->refusalOf($attempt));
+    }
+
     public function testABodyChangedAfterTheFinalCheckOfARetryIsStoppedBeforeItIsSent(): void
     {
         $body = new MutableBodyStream('amount=100');
