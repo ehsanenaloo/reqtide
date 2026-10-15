@@ -2,7 +2,7 @@
 
 Thanks for helping. This guide takes you from clone to pull request. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-Reqtide is a small project with one maintainer. It is in alpha, so the API can change. Bug reports, documentation fixes and small pull requests are welcome.
+Reqtide is a small project with one maintainer. It is in beta (version 0.x), so the API can change. Bug reports, documentation fixes and small pull requests are welcome.
 
 For anything larger than a small fix, or anything that adds a public class, an option or a dependency, please open an issue first and describe what you want to change. That avoids work on a change that does not fit the project.
 

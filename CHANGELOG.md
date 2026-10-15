@@ -6,7 +6,11 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
-Nothing has been released. There is no tagged version and the package is not on Packagist, so everything below is unreleased. While the project is alpha, any public name or behavior may change without notice.
+## [0.1.0] - 2026-10-15
+
+First release. The version is 0.x: the API can change between minor versions, and every change is listed here. `enaxon/reqtide`, `enaxon/reqtide-redis` and `enaxon/reqtide-guzzle` are released with the same version number, and each adapter requires exactly the same version of the core.
+
+Tested on the command line with PHP 8.3, 8.4 and 8.5, Redis 7.4.11 and 8.2.10, Predis 3.7 and Guzzle 7.15, and in one PHP-FPM lane with Redis. Not tested: the Guzzle client under PHP-FPM, Redis Sentinel, Redis Cluster, Valkey, PSR-18.
 
 ### Added
 
@@ -26,10 +30,10 @@ Nothing has been released. There is no tagged version and the package is not on 
 - Documentation in `docs/`: install, getting started, choosing policies, error handling, testing, limits, a self-run comparison with six libraries, and a FAQ. Every code and output block is an excerpt of an example that is run and compared with recorded output.
 - Runnable examples 01 to 11 in `examples/` with recorded output, and a script to run them.
 - A short description for language-model readers in `docs/llms.txt`.
-- Two separate packages in the development repository, not part of the archive of `enaxon/reqtide`:
+- Two separate packages, not part of the archive of `enaxon/reqtide`:
   - `enaxon/reqtide-redis`: rate limit, circuit breaker, bulkhead, retry budget and cooldown state in Redis, shared by several processes.
   - `enaxon/reqtide-guzzle`: retries, deadlines, rate limits and circuit breaking around Guzzle requests.
-  - Neither is released or on Packagist. Both were run only in local Docker: PHP 8.3 to 8.5 on the command line, Redis 7.4.11 and 8.2.10, Guzzle 7.15.5. PHP-FPM, Redis Sentinel, Redis Cluster, Valkey and PSR-18 are not supported.
+  - Both were run in Docker and in CI: PHP 8.3 to 8.5 on the command line, Redis 7.4.11 and 8.2.10, Guzzle 7.15.5. Redis Sentinel, Redis Cluster, Valkey and PSR-18 are not supported.
 
 ### Changed
 
@@ -41,3 +45,6 @@ Nothing has been released. There is no tagged version and the package is not on 
 ### Security
 
 - No security-relevant change. See the [security policy](https://github.com/ehsanenaloo/reqtide/security/policy) for how to report a vulnerability privately.
+
+[Unreleased]: https://github.com/ehsanenaloo/reqtide/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/ehsanenaloo/reqtide/releases/tag/v0.1.0

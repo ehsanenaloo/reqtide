@@ -2,7 +2,7 @@
 
 **Shared state for Reqtide, so several PHP processes obey one rate limit, one circuit breaker and one bulkhead.**
 
-This package is the Redis state backend of [Reqtide PHP](https://github.com/ehsanenaloo/reqtide). It is not released and not on Packagist. It works in the development repository and has been run only in local Docker tests.
+This package is the Redis state backend of [Reqtide PHP](https://github.com/ehsanenaloo/reqtide). Install it next to the core: `composer require enaxon/reqtide enaxon/reqtide-redis`. It is a beta (version 0.x): the API can change between minor versions. It was tested on the command line with PHP 8.3 to 8.5, Redis 7.4.11 and 8.2.10 and Predis 3.7, including TLS, and in one PHP-FPM lane. Redis 7.0 is the minimum. Sentinel, Cluster and Valkey are not supported.
 
 ## What exists today
 

@@ -2,12 +2,12 @@
 
 Eleven small scripts that use the real public API of the core package, with its process-local, in-memory state. Examples 01 to 05 are annotated and check their own behaviour with explicit assertions; 06 to 11 are self-contained and are the source of every code and output block in [`docs/`](../docs/README.md) and in the README. All of them exit non-zero on anything unexpected, so they double as smoke tests.
 
-> **Status: alpha, nothing is released.** These examples run from this repository only. The Redis and Guzzle packages are separate, unreleased packages with their own examples; nothing here uses them.
+> **Status: beta (version 0.x).** These examples run from this repository. The Redis and Guzzle packages are separate packages with their own examples; nothing here uses them.
 
 ## What you must know before copying anything
 
 - **State is process-local.** The memory backends hold rate-limit, circuit, concurrency, retry-budget and cooldown state in the memory of the PHP process that created them. Nothing is shared with other processes or servers.
-- **Under PHP-FPM, construction is per request.** If you build the pipeline and its backends in request code, every request starts with a fresh quota and a closed circuit, and no request sees another's failures. Limits therefore do not add up across requests or workers. Sharing state across requests needs a shared backend, such as the unreleased separate Redis package.
+- **Under PHP-FPM, construction is per request.** If you build the pipeline and its backends in request code, every request starts with a fresh quota and a closed circuit, and no request sees another's failures. Limits therefore do not add up across requests or workers. Sharing state across requests needs a shared backend, such as the separate Redis package.
 - **Running callbacks are not interrupted.** Deadlines are checked between steps (before an attempt, around a delay), not inside your code. The synchronous runtime cannot enforce an attempt timeout; `explain()` says so (`attempt_timeout=unsupported`, `physical_stop=not_guaranteed`).
 - **Retries need your explicit statement of safety.** Reqtide cannot know whether repeating your callable is safe. Retrying requires a retry budget and, on every call, a replay-safety assertion: `OperationSafety::replayableRead(ReplaySafetyContract::forReadOnlyCallable(...))`. Calling `forReadOnlyCallable()` IS your assertion that the callable is a repeatable read; it is never inferred or checked. The builder tells you which of these is missing.
 - **You decide what is retryable.** `ExceptionClassifier` is a ready-made classifier, but its defaults are conservative: no exception is retried or replaced by a fallback unless you list its class (`retryOn()`, `fallbackOn()`); an unlisted exception still counts as a circuit failure. Example 03 shows the hand-written `OutcomeClassifier` the class replaces.

@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Thanks for reporting. Please read the [documentation](https://github.com/ehsanenaloo/reqtide/tree/main/docs) and search existing issues first.
-        Reqtide is in alpha. Do not include secrets, tokens or production data.
+        Reqtide is in beta (version 0.x). Do not include secrets, tokens or production data.
         Report security problems privately through the Security tab, not here.
   - type: input
     id: version

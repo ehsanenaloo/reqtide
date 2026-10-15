@@ -9,7 +9,7 @@
 **Retries, rate limits, a circuit breaker and a deadline in one pipeline. Testable under virtual time.**
 
 A resilience toolkit for PHP code that calls unreliable APIs.
-No runtime dependencies in the core package. Alpha: not released, not on Packagist.
+No runtime dependencies in the core package. Beta: version 0.x, the API can change between minor versions.
 
 [![User guide](https://img.shields.io/badge/User%20guide-Open%20the%20docs-0f766e?logo=readthedocs&logoColor=white&style=for-the-badge)](docs/index.html)
 [![Examples](https://img.shields.io/badge/Examples-Run%20in%20Docker-2496ED?logo=docker&logoColor=white&style=for-the-badge)](examples)
@@ -17,7 +17,7 @@ No runtime dependencies in the core package. Alpha: not released, not on Packagi
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 ![PHP 8.3+](https://img.shields.io/badge/PHP-8.3%2B-777BB4)
 ![Core runtime dependencies: none](https://img.shields.io/badge/core%20runtime%20dependencies-none-lightgrey)
-![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
+![Status: beta](https://img.shields.io/badge/status-beta-yellow)
 [![Docs](https://img.shields.io/badge/docs-guides-0f766e)](docs/index.html)
 
 <a href="docs/index.html"><img src="docs/assets/screenshots/guide-home-light.jpg" width="860" alt="The Reqtide documentation home page"></a>
@@ -38,25 +38,17 @@ It wraps a callable. It is not an HTTP client, a queue or edge protection. In th
 
 | Route | Status |
 | --- | --- |
-| Packagist (`composer require enaxon/reqtide`) | Not available |
-| Composer path repository, from a clone | Works. See [Install](docs/guides/install.html). |
-| PHP 8.3, 8.4, 8.5 | Run in Docker, command line only |
+| Packagist (`composer require enaxon/reqtide`) | Available from 0.1.0 |
+| PHP 8.3, 8.4, 8.5 | Tested on the command line |
 | PHP-FPM | One lane in CI: PHP 8.4, nginx, six workers, Redis 8.2.10. Other PHP versions, Apache and other web servers: not run |
 
-```bash
-git clone https://github.com/ehsanenaloo/reqtide.git
-# Register ../reqtide as a Composer "path" repository (docs/guides/install.html), then:
-composer require "enaxon/reqtide:@dev"
+```shell
+composer require enaxon/reqtide
+composer require enaxon/reqtide-redis   # optional: state shared by processes
+composer require enaxon/reqtide-guzzle  # optional: Guzzle integration
 ```
 
-No PHP on your machine? Run the examples in Docker from the clone:
-
-```bash
-docker compose -f tools/docker/compose.yaml run --rm php83 composer install
-docker compose -f tools/docker/compose.yaml run --rm php83 php examples/06-getting-started.php
-```
-
-The Redis and Guzzle packages are in `packages/redis` and `packages/guzzle` of the same clone. Add each one as one more path repository. They need the same version of the core.
+The three packages are released together at one version. Each adapter needs exactly the same version of the core. To run the examples without PHP on your machine, clone the repository and use Docker: see [Install](docs/guides/install.html).
 
 Save this as `demo.php` in a project with the core package installed. It is [`examples/06-getting-started.php`](examples/06-getting-started.php).
 
@@ -151,9 +143,9 @@ Three Composer packages, one version:
 
 | Package | What it does | State |
 | --- | --- | --- |
-| `enaxon/reqtide` | The pipeline, the policies, the typed results and the test helpers. No runtime dependencies. | Works from a clone. Not released |
-| [`enaxon/reqtide-redis`](packages/redis/README.md) | Rate limit, circuit breaker, bulkhead, retry budget and cooldown shared by processes, in Redis 7.0 or newer. | Works from a clone, run only in local Docker. Not released. Not supported: Sentinel, Cluster, Valkey |
-| [`enaxon/reqtide-guzzle`](packages/guzzle/README.md) | `ReqtideClient`: the pipeline around Guzzle 7 requests, with explicit rules for what may be sent twice. | Works from a clone, run only in local Docker. Not released. Not tested under PHP-FPM. Not supported: PSR-18 |
+| `enaxon/reqtide` | The pipeline, the policies, the typed results and the test helpers. No runtime dependencies. | Beta |
+| [`enaxon/reqtide-redis`](packages/redis/README.md) | Rate limit, circuit breaker, bulkhead, retry budget and cooldown shared by processes, in Redis 7.0 or newer. | Beta. Tested on the PHP 8.3 to 8.5 CLI and in one PHP-FPM lane. Not supported: Sentinel, Cluster, Valkey |
+| [`enaxon/reqtide-guzzle`](packages/guzzle/README.md) | `ReqtideClient`: the pipeline around Guzzle 7 requests, with explicit rules for what may be sent twice. | Beta. Tested on the PHP 8.3 to 8.5 CLI with cURL handlers. Not tested under PHP-FPM. Not supported: PSR-18 |
 
 ---
 
@@ -340,7 +332,7 @@ These are local runs in Docker containers, on the command line.
 
 ### Good to know
 
-- Nothing is released. There is no tag and no Packagist entry. The code is public and CI runs on every push (GitHub Actions: PHP 8.3, 8.4 and 8.5, the Redis suites, the PHP-FPM lane, coverage and mutation testing); the results are on the Actions tab of the repository.
+- Version 0.x is beta. The API can change between minor versions, and every break is listed in the changelog. CI runs on every push (GitHub Actions: PHP 8.3, 8.4 and 8.5, the Redis suites, the PHP-FPM lane, coverage and mutation testing); the results are on the Actions tab of the repository.
 - PHP-FPM has one CI lane (PHP 8.4, nginx, six workers, Redis 8.2.10). Not tested: the Guzzle client under FPM, other PHP versions under FPM, Apache and other web servers. Not supported: Redis Sentinel, Redis Cluster, Valkey, Guzzle 8 and PSR-18.
 - The core package keeps its state in one process. Under PHP-FPM every request starts fresh.
 - A running callback is not interrupted. The deadline is checked between steps.
@@ -365,7 +357,7 @@ The full list is in [Limits and non-guarantees](docs/guides/limits.html).
 <details>
 <summary><b>Is it on Packagist?</b></summary>
 
-No, there is no tagged release. Install from a clone: [Install](docs/guides/install.html).
+Yes: `composer require enaxon/reqtide`. See [Install](docs/guides/install.html).
 </details>
 
 <details>

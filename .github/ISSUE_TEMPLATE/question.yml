@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Please read the [documentation](https://github.com/ehsanenaloo/reqtide/tree/main/docs), especially the FAQ and the limits page, and search existing issues first.
-        This is a single-maintainer alpha project, so replies are best effort. Do not paste secrets, tokens or production data.
+        This is a single-maintainer beta project, so replies are best effort. Do not paste secrets, tokens or production data.
   - type: textarea
     id: question
     attributes:

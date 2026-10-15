@@ -1,10 +1,10 @@
 # Reqtide PHP documentation
 
-*Applies to the unreleased alpha (no version number yet). Checked 2026-10-09.*
+*Applies to version 0.1.0 (beta). Checked 2026-10-15.*
 
 Static HTML guides for Reqtide PHP, in English. The site needs no build step to read, no external services and no JavaScript to be complete. With JavaScript it adds site search, a theme switch, guide filtering and copy buttons. Start at [`index.html`](index.html). Every PHP code block and every output block in the guides is taken verbatim from a script in [`examples/`](https://github.com/ehsanenaloo/reqtide/tree/main/examples) (for the two package guides, from `packages/redis/examples` or `packages/guzzle/examples`) that the project runs and compares with recorded output, and the API reference is generated from the real classes in `src/` and in the two packages.
 
-> **Alpha.** Reqtide is not released and not on Packagist. The core package keeps its state in one process. Shared state in Redis and a Guzzle integration exist as separate packages in the development repository; they are not released and were run only in local Docker. See [Limits and non-guarantees](guides/limits.html) for what that means.
+> **Beta (version 0.x).** The core package keeps its state in one process. Shared state in Redis and a Guzzle integration are separate packages; they were run in Docker and in CI. See [Limits and non-guarantees](guides/limits.html) for what that means.
 
 ## Learning path
 
@@ -50,7 +50,7 @@ The protection guides (retry, rate limiting, circuit breaker, bulkhead, fallback
 **Reference**
 
 - [API reference](guides/api-reference.html): The public surface you use day to day, with signatures generated from the real classes: PipelineBuilder, CompiledPipeline, ExceptionClassifier, policies, outcomes, events, Problem and the test helpers. The classes of the Redis and Guzzle packages have their own groups.
-- [Limits and non-guarantees](guides/limits.html): An honest list of what the alpha does not do, what Reqtide never promises, what it commits to, and what is only planned.
+- [Limits and non-guarantees](guides/limits.html): An honest list of what version 0.x does not do, what Reqtide never promises, what it commits to, and what is only planned.
 
 **Trust and help**
 

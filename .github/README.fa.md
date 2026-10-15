@@ -9,7 +9,7 @@
 **تلاش دوباره، محدودیت نرخ، مدارشکن و مهلت کل در یک خط لوله. قابل آزمون با زمان مجازی.**
 
 جعبه‌ابزار تاب‌آوری برای کد PHP که به APIهای ناپایدار درخواست می‌فرستد.
-هستهٔ بسته وابستگی زمان اجرا ندارد. آلفا: منتشر نشده و روی Packagist نیست.
+هستهٔ بسته وابستگی زمان اجرا ندارد. بتا: نسخهٔ 0.x، API ممکن است بین نسخه‌های فرعی عوض شود.
 
 [![User guide](https://img.shields.io/badge/User%20guide-Open%20the%20docs-0f766e?logo=readthedocs&logoColor=white&style=for-the-badge)](../docs/index.html)
 [![Examples](https://img.shields.io/badge/Examples-Run%20in%20Docker-2496ED?logo=docker&logoColor=white&style=for-the-badge)](../examples)
@@ -17,7 +17,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](../LICENSE)
 ![PHP 8.3+](https://img.shields.io/badge/PHP-8.3%2B-777BB4)
 ![Core runtime dependencies: none](https://img.shields.io/badge/core%20runtime%20dependencies-none-lightgrey)
-![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
+![Status: beta](https://img.shields.io/badge/status-beta-yellow)
 [![Docs](https://img.shields.io/badge/docs-guides-0f766e)](../docs/index.html)
 
 <a href="../docs/index.html"><img src="../docs/assets/screenshots/guide-home-light.jpg" width="860" alt="صفحهٔ اصلی مستندات Reqtide "></a>
@@ -40,23 +40,15 @@ Reqtide یک callable را می‌پیچد. کلاینت HTTP، صف یا محا
 
 | مسیر | وضعیت |
 | --- | --- |
-| Packagist (`composer require enaxon/reqtide`) | در دسترس نیست |
-| مخزن path در Composer، از روی یک clone | کار می‌کند. [راهنمای نصب](../docs/guides/install.html) را ببینید. |
+| Packagist (`composer require enaxon/reqtide`) | از نسخهٔ 0.1.0 در دسترس است |
 
-```bash
-git clone https://github.com/ehsanenaloo/reqtide.git
-# Register ../reqtide as a Composer "path" repository (docs/guides/install.html), then:
-composer require "enaxon/reqtide:@dev"
+```shell
+composer require enaxon/reqtide
+composer require enaxon/reqtide-redis   # optional: state shared by processes
+composer require enaxon/reqtide-guzzle  # optional: Guzzle integration
 ```
 
-روی دستگاهتان PHP ندارید؟ مثال‌ها را از داخل clone در Docker اجرا کنید:
-
-```bash
-docker compose -f tools/docker/compose.yaml run --rm php83 composer install
-docker compose -f tools/docker/compose.yaml run --rm php83 php examples/06-getting-started.php
-```
-
-بسته‌های Redis و Guzzle در `packages/redis` و `packages/guzzle` همان clone هستند. هر کدام را به‌عنوان یک مخزن path دیگر اضافه کنید. آن‌ها همان نسخهٔ هسته را لازم دارند.
+سه بسته با یک شماره نسخه منتشر می‌شوند. هر مبدل دقیقاً همان نسخهٔ هسته را لازم دارد. برای اجرای مثال‌ها بدون PHP روی دستگاه، مخزن را clone کنید و از Docker استفاده کنید: [راهنمای نصب](../docs/guides/install.html).
 
 این کد را در پروژه‌ای که بستهٔ هسته در آن نصب است با نام `demo.php` ذخیره کنید. این همان [`examples/06-getting-started.php`](../examples/06-getting-started.php) است.
 
@@ -151,9 +143,9 @@ invocations: 3
 
 | بسته | چه می‌کند | وضعیت |
 | --- | --- | --- |
-| `enaxon/reqtide` | خط لوله، سیاست‌ها، نتیجه‌های نوع‌دار و ابزار آزمون. بدون وابستگی زمان اجرا. | از روی clone کار می‌کند. منتشر نشده |
-| [`enaxon/reqtide-redis`](../packages/redis/README.md) | محدودیت نرخ، مدارشکن، bulkhead، بودجهٔ تلاش دوباره و cooldown مشترک بین پروسه‌ها، در Redis نسخهٔ ۷٫۰ یا بالاتر. | از روی clone کار می‌کند، فقط در Docker محلی اجرا شده. منتشر نشده. پشتیبانی نمی‌شود: Sentinel، Cluster، Valkey |
-| [`enaxon/reqtide-guzzle`](../packages/guzzle/README.md) | `ReqtideClient`: خط لوله دور درخواست‌های Guzzle 7، با قاعده‌های روشن برای اینکه چه چیزی را می‌شود دوبار فرستاد. | از روی clone کار می‌کند، فقط در Docker محلی اجرا شده. منتشر نشده. پشتیبانی نمی‌شود: PHP-FPM، PSR-18 |
+| `enaxon/reqtide` | خط لوله، سیاست‌ها، نتیجه‌های نوع‌دار و ابزار آزمون. بدون وابستگی زمان اجرا. | بتا |
+| [`enaxon/reqtide-redis`](../packages/redis/README.md) | محدودیت نرخ، مدارشکن، bulkhead، بودجهٔ تلاش دوباره و cooldown مشترک بین پروسه‌ها، در Redis نسخهٔ ۷٫۰ یا بالاتر. | بتا. روی CLI در PHP 8.3 تا 8.5 و در یک مسیر PHP-FPM آزموده شده. پشتیبانی نمی‌شود: Sentinel، Cluster، Valkey |
+| [`enaxon/reqtide-guzzle`](../packages/guzzle/README.md) | `ReqtideClient`: خط لوله دور درخواست‌های Guzzle 7، با قاعده‌های روشن برای اینکه چه چیزی را می‌شود دوبار فرستاد. | بتا. روی CLI در PHP 8.3 تا 8.5 با handlerهای cURL آزموده شده. زیر PHP-FPM آزموده نشده. پشتیبانی نمی‌شود: PSR-18 |
 
 ---
 
@@ -340,7 +332,7 @@ business exception: Reqtide\Examples\ErrorHandling\UpstreamTimeout (upstream tim
 
 ### خوب است بدانید
 
-- هیچ‌چیز منتشر نشده است. تگ و ورودی Packagist وجود ندارد. کد عمومی است و CI با هر push اجرا می‌شود (GitHub Actions: PHP 8.3 و 8.4 و 8.5، مجموعه‌های Redis، مسیر PHP-FPM، پوشش و آزمون جهش)؛ نتایج در برگهٔ Actions مخزن است.
+- نسخهٔ 0.x بتا است. API ممکن است بین نسخه‌های فرعی عوض شود و هر تغییر در changelog می‌آید. CI با هر push اجرا می‌شود (GitHub Actions: PHP 8.3 و 8.4 و 8.5، مجموعه‌های Redis، مسیر PHP-FPM، پوشش و آزمون جهش)؛ نتایج در برگهٔ Actions مخزن است.
 - PHP-FPM یک مسیر در CI دارد (PHP 8.4، nginx، شش worker، Redis 8.2.10). آزمون نشده: کلاینت Guzzle زیر FPM، نسخه‌های دیگر PHP زیر FPM، Apache و وب‌سرورهای دیگر. پشتیبانی نمی‌شود: Redis Sentinel، Redis Cluster، Valkey، Guzzle 8 و PSR-18.
 - بستهٔ هسته وضعیت را در یک پروسه نگه می‌دارد. زیر PHP-FPM هر درخواست از صفر شروع می‌کند.
 - callback در حال اجرا قطع نمی‌شود. مهلت بین گام‌ها بررسی می‌شود.
@@ -365,7 +357,7 @@ business exception: Reqtide\Examples\ErrorHandling\UpstreamTimeout (upstream tim
 <details>
 <summary><b>روی Packagist هست؟</b></summary>
 
-نه، تگ منتشرشده‌ای وجود ندارد. از روی clone نصب کنید: [نصب](../docs/guides/install.html).
+بله: `composer require enaxon/reqtide`. [نصب](../docs/guides/install.html) را ببینید.
 </details>
 
 <details>

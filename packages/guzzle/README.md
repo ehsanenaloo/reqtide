@@ -2,7 +2,7 @@
 
 **Retries, deadlines, rate limits and circuit breaking around Guzzle requests, with explicit rules for what may be sent twice.**
 
-This package is the Guzzle integration of [Reqtide PHP](https://github.com/ehsanenaloo/reqtide). It is not released and not on Packagist. It works in the development repository, with process-local state or with the Redis backends of `enaxon/reqtide-redis` passed in (`ReqtideClient::withBackends`). Everything below was run only in local Docker tests.
+This package is the Guzzle integration of [Reqtide PHP](https://github.com/ehsanenaloo/reqtide). Install it next to the core: `composer require enaxon/reqtide enaxon/reqtide-guzzle`. It is a beta (version 0.x): the API can change between minor versions. It works with process-local state, or with the Redis backends of `enaxon/reqtide-redis` passed in (`ReqtideClient::withBackends`). It was tested on the command line with PHP 8.3 to 8.5 and Guzzle 7.15.5. PHP-FPM is not tested.
 
 ## What exists today
 
