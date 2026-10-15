@@ -195,6 +195,22 @@ jobs:
       - name: PHP-FPM lane
         run: bash tools/check-fpm.sh
 
+  wire:
+    if: github.repository == 'ehsanenaloo/reqtide'
+    name: Wire tests (Go server, PHP 8.4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # An HTTP server written in Go records what the Guzzle package sends: whole bodies of several sizes, the hazard of a
+      # default Content-Length, and an upload that the server cuts short. The server is built in a pinned Go image.
+      - name: Wire tests
+        run: bash tools/check-wire.sh
+
   audit:
     if: github.repository == 'ehsanenaloo/reqtide'
     name: Composer audit

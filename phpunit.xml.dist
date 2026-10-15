@@ -27,6 +27,10 @@
         <testsuite name="guzzle-unit">
             <directory>packages/guzzle/tests/Unit</directory>
         </testsuite>
+        <!-- Wire tests: an HTTP server written in Go records what the Guzzle package sends. Needs the built server (RT_WIRE_SERVER), run by tools/check-wire.sh. -->
+        <testsuite name="guzzle-wire">
+            <directory>packages/guzzle/tests/Wire</directory>
+        </testsuite>
         <!-- Contract suites against a Redis whose clock the tests control (libfaketime): needs RT_REDIS_HOST and RT_FAKETIME_FILE, run by tools/check-redis-clock.sh. -->
         <testsuite name="redis-clock">
             <directory>packages/redis/tests/Clocked</directory>
