@@ -246,12 +246,25 @@ final class MultiProcessTest extends TestCase
 
         $results = $this->workers(8, ['scenario' => 'churn', 'seconds' => 8, 'subjects' => 40], 20, 40, 60.0, $tick);
 
-        self::assertGreaterThan(500, self::extra($results, 'operations'), 'the workers did real work');
-        self::assertLessThanOrEqual(20, $maxPartitions);
-        self::assertLessThanOrEqual(40, $maxRecords);
-        self::assertLessThanOrEqual(20 * 2 + 4, $maxKeys, 'the number of keys follows the partitions, not the history');
+        $operations = self::extra($results, 'operations');
+        $counters = sprintf(
+            'operations=%d maxPartitions=%d maxRecords=%d maxKeys=%d memoryFirst=%s memoryLast=%d',
+            $operations,
+            $maxPartitions,
+            $maxRecords,
+            $maxKeys,
+            var_export($memoryFirst, true),
+            $memoryLast,
+        );
+
+        // Throughput depends on the load of the host (19 to over 500 operations in eight seconds were measured), so this
+        // only proves that the workers ran.
+        self::assertGreaterThan(0, $operations, "the workers did real work ({$counters})");
+        self::assertLessThanOrEqual(20, $maxPartitions, $counters);
+        self::assertLessThanOrEqual(40, $maxRecords, $counters);
+        self::assertLessThanOrEqual(20 * 2 + 4, $maxKeys, "the number of keys follows the partitions, not the history ({$counters})");
         self::assertNotNull($memoryFirst);
-        self::assertLessThan(8_000_000, $memoryLast - $memoryFirst, 'server memory did not grow with the number of operations');
+        self::assertLessThan(8_000_000, $memoryLast - $memoryFirst, "server memory did not grow with the number of operations ({$counters})");
 
         // Quiet: maintenance runs to the end, and the counters equal what is stored.
         $maintenance = new RedisRegistryMaintenance($this->options(), $this->registry(20, 40));

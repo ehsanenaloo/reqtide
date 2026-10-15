@@ -35,9 +35,9 @@ final class RedisRegistryAdmin
 
     /**
      * Creates the registry, or confirms an identical existing one (idempotent). It refuses, with nothing written, a
-     * server older than Redis 7.0 and a key prefix that still holds the index or the tombstone queue of a retired
+     * server older than Redis 7.0, a server in Cluster mode and a key prefix that still holds the index or the tombstone queue of a retired
      * registry that was not purged (run {@see purgeRetired()} first): adopting them would start the counters at zero over
-     * records that are still there. Both refusals are `InvalidConfigurationException`.
+     * records that are still there. All refusals are `InvalidConfigurationException`.
      */
     public function initialize(): RegistryStatus
     {
@@ -93,10 +93,10 @@ final class RedisRegistryAdmin
     /**
      * Reads the eviction policy and the memory limit of the server with the administrative connection. A server whose
      * policy can evict keys can delete protective state without any signal; see {@see ServerPolicyReport}. An ACL that
-     * forbids `CONFIG GET` gives a report whose answer is unknown, never a guess. A server older than Redis 7.0 is refused.
+     * forbids `CONFIG GET` gives a report whose answer is unknown, never a guess. A server older than Redis 7.0 or in Cluster mode is refused.
      *
      * @throws InfrastructureException
-     * @throws InvalidConfigurationException when the server is older than Redis 7.0
+     * @throws InvalidConfigurationException when the server is older than Redis 7.0 or in Cluster mode
      */
     public function inspectServer(): ServerPolicyReport
     {

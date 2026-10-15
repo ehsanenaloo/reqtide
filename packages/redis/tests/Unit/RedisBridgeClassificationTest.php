@@ -260,6 +260,25 @@ final class RedisBridgeClassificationTest extends TestCase
         self::assertSame([['INFO', 'server']], $port->sent);
     }
 
+    public function testAServerInClusterModeIsRefusedWithTheReason(): void
+    {
+        $port = new ScriptedPort([new PortReply(false, "# Server\r\nredis_version:7.4.11\r\nredis_mode:cluster\r\n")]);
+        try {
+            $this->bridge($port)->requireSupportedServer();
+            self::fail('expected an exception');
+        } catch (InvalidConfigurationException $e) {
+            self::assertStringContainsString('Cluster', $e->getMessage());
+        }
+        self::assertSame([['INFO', 'server']], $port->sent);
+    }
+
+    public function testAServerInStandaloneModeIsNotRefusedAsACluster(): void
+    {
+        $port = new ScriptedPort([new PortReply(false, "# Server\r\nredis_version:8.2.10\r\nredis_mode:standalone\r\n")]);
+        $this->bridge($port)->requireSupportedServer();
+        self::assertCount(1, $port->sent);
+    }
+
     public function testAServerThatRefusesInfoIsNotRefusedHere(): void
     {
         $port = new ScriptedPort([new PortReply(true, 'NOPERM User x has no permissions to run the \'info\' command')]);

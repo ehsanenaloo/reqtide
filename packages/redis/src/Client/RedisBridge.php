@@ -57,6 +57,9 @@ final class RedisBridge
         'RT_VERSION' => 'The Redis server is older than the minimum of 7.0.',
     ];
 
+    /** The scripts reach keys they derive themselves, which Redis Cluster does not allow. */
+    private const CLUSTER_MESSAGE = 'The Redis server runs in Cluster mode, which is not supported: the scripts use keys that are not passed in KEYS.';
+
     /** First Redis version the scripts run on (redis.acl_check_cmd). */
     private const MINIMUM_MAJOR_VERSION = 7;
 
@@ -131,11 +134,12 @@ final class RedisBridge
     }
 
     /**
-     * Checks that the server is a Redis the scripts run on (7.0 or newer, which has `redis.acl_check_cmd`), with INFO. A
+     * Checks that the server is a Redis the scripts run on (7.0 or newer, which has `redis.acl_check_cmd`, and not in
+     * Cluster mode), with INFO. A
      * server that refuses INFO or does not say its version is not refused here: the scripts check for themselves and fail
      * before their first command on a server that is too old. Writes nothing.
      *
-     * @throws InvalidConfigurationException when the server reports a version below the minimum
+     * @throws InvalidConfigurationException when the server reports a version below the minimum or Cluster mode
      * @throws StateUnavailableException when the server cannot be reached or the reply is cut
      */
     public function requireSupportedServer(): void
@@ -146,7 +150,13 @@ final class RedisBridge
         } catch (\Throwable $failure) {
             throw new StateUnavailableException('The Redis state backend is unavailable (read failed).', 0, $failure);
         }
-        if ($reply->isError || !is_string($reply->value) || preg_match('~^redis_version:([0-9]+)\.~m', $reply->value, $match) !== 1) {
+        if ($reply->isError || !is_string($reply->value)) {
+            return;
+        }
+        if (preg_match('~^redis_mode:cluster\r?$~m', $reply->value) === 1) {
+            throw new InvalidConfigurationException(self::CLUSTER_MESSAGE);
+        }
+        if (preg_match('~^redis_version:([0-9]+)\.~m', $reply->value, $match) !== 1) {
             return;
         }
         if ((int) $match[1] < self::MINIMUM_MAJOR_VERSION) {
