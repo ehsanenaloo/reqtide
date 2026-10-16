@@ -38,7 +38,7 @@ It wraps a callable. It is not an HTTP client, a queue or edge protection. In th
 | --- | --- |
 | Packagist (`composer require enaxon/reqtide`) | Available from 0.1.0 |
 | PHP 8.3, 8.4, 8.5 | Tested on the command line |
-| PHP-FPM | One lane in CI: PHP 8.4, nginx, six workers, Redis 8.2.10. Other PHP versions, Apache and other web servers: not run |
+| PHP-FPM | Three lanes in CI (PHP 8.3, 8.4 and 8.5), each with nginx, six workers and Redis 8.2.10. Apache and other web servers: not run |
 
 ```shell
 composer require enaxon/reqtide
@@ -142,7 +142,7 @@ Three Composer packages, one version:
 | Package | What it does | State |
 | --- | --- | --- |
 | `enaxon/reqtide` | The pipeline, the policies, the typed results and the test helpers. No runtime dependencies. | Beta |
-| [`enaxon/reqtide-redis`](packages/redis/README.md) | Rate limit, circuit breaker, bulkhead, retry budget and cooldown shared by processes, in Redis 7.0 or newer. | Beta. Tested on the PHP 8.3 to 8.5 CLI and in one PHP-FPM lane. Not supported: Sentinel, Cluster, Valkey |
+| [`enaxon/reqtide-redis`](packages/redis/README.md) | Rate limit, circuit breaker, bulkhead, retry budget and cooldown shared by processes, in Redis 7.0 or newer. | Beta. Tested on the PHP 8.3 to 8.5 CLI and in PHP-FPM lanes. Not supported: Sentinel, Cluster, Valkey |
 | [`enaxon/reqtide-guzzle`](packages/guzzle/README.md) | `ReqtideClient`: the pipeline around Guzzle 7 requests, with explicit rules for what may be sent twice. | Beta. Tested on the PHP 8.3 to 8.5 CLI with cURL handlers. Not tested under PHP-FPM. Not supported: PSR-18 |
 
 ---
@@ -331,7 +331,7 @@ These are local runs in Docker containers, on the command line.
 ### Good to know
 
 - Version 0.x is beta. The API can change between minor versions, and every break is listed in the changelog. CI runs on every push (GitHub Actions: PHP 8.3, 8.4 and 8.5, the Redis suites, the PHP-FPM lane, coverage and mutation testing); the results are on the Actions tab of the repository.
-- PHP-FPM has one CI lane (PHP 8.4, nginx, six workers, Redis 8.2.10). Not tested: the Guzzle client under FPM, other PHP versions under FPM, Apache and other web servers. Not supported: Redis Sentinel, Redis Cluster, Valkey, Guzzle 8 and PSR-18.
+- PHP-FPM has three CI lanes (PHP 8.3, 8.4 and 8.5, each with nginx, six workers and Redis 8.2.10). Not tested: the Guzzle client under FPM, Apache and other web servers. Not supported: Redis Sentinel, Redis Cluster, Valkey, Guzzle 8 and PSR-18.
 - The core package keeps its state in one process. Under PHP-FPM every request starts fresh.
 - A running callback is not interrupted. The deadline is checked between steps.
 - There is no exactly-once execution, and a rate unit is not given back when a call is cancelled before dispatch.

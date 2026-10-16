@@ -182,9 +182,13 @@ jobs:
 
   fpm:
     if: github.repository == 'ehsanenaloo/reqtide'
-    name: PHP-FPM lane (PHP 8.4)
+    name: PHP-FPM lane (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.3", "8.4", "8.5"]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -193,7 +197,9 @@ jobs:
 
       # nginx and PHP-FPM with six workers in Docker, a Redis server, and a driver that sends requests through nginx.
       - name: PHP-FPM lane
-        run: bash tools/check-fpm.sh
+        env:
+          PHP_VERSION_MINOR: ${{ matrix.php }}
+        run: PHP_SERVICE="php${PHP_VERSION_MINOR/./}" bash tools/check-fpm.sh
 
   wire:
     if: github.repository == 'ehsanenaloo/reqtide'

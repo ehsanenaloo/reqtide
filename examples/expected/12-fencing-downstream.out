@@ -1,0 +1,5 @@
+-- 1. The current holder writes
+accepted with fence 2
+-- 2. A holder that lost its slot writes late
+refused with fence 1
+stored: fence 2, written by worker-b

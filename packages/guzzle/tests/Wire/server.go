@@ -6,9 +6,12 @@
 //	POST /echo            reads the whole body and answers a JSON object (length, sha256, contentLength, transferEncoding)
 //	POST /cut?after=N     reads N bytes of the body, then closes the connection without an answer
 //	GET  /__count?path=P  answers the number of requests seen for the path P
+//	GET  /stream?chunks=N&delay=MS   answers N chunks of 1024 bytes ("chunk-<i>" padded), flushing and waiting MS milliseconds between them
+//	GET  /trickle         answers one byte every 100 ms until the client goes away
 //
 // Build: CGO_ENABLED=0 go build -o server server.go
 // Run:   server           prints "LISTENING 127.0.0.1:<port>" and serves until it is killed.
+//        WIRE_LISTEN=0.0.0.0:8080 server   listens on that address instead (the proxy lane runs the server in a container).
 package main
 
 import (
@@ -19,8 +22,11 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -69,13 +75,47 @@ func counter(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprint(w, counts[r.URL.Query().Get("path")])
 }
 
+func stream(w http.ResponseWriter, r *http.Request) {
+	count(r.URL.Path)
+	chunks, _ := strconv.Atoi(r.URL.Query().Get("chunks"))
+	delay, _ := strconv.Atoi(r.URL.Query().Get("delay"))
+	flusher, _ := w.(http.Flusher)
+	w.Header().Set("Content-Type", "text/plain")
+	for i := 0; i < chunks; i++ {
+		line := fmt.Sprintf("chunk-%d", i)
+		_, _ = io.WriteString(w, line+strings.Repeat("x", 1023-len(line))+"\n")
+		if flusher != nil {
+			flusher.Flush()
+		}
+		time.Sleep(time.Duration(delay) * time.Millisecond)
+	}
+}
+
+func trickle(w http.ResponseWriter, r *http.Request) {
+	count(r.URL.Path)
+	flusher, _ := w.(http.Flusher)
+	for r.Context().Err() == nil {
+		_, _ = io.WriteString(w, ".")
+		if flusher != nil {
+			flusher.Flush()
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/echo", echo)
 	mux.HandleFunc("/cut", cut)
 	mux.HandleFunc("/__count", counter)
+	mux.HandleFunc("/stream", stream)
+	mux.HandleFunc("/trickle", trickle)
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	address := os.Getenv("WIRE_LISTEN")
+	if address == "" {
+		address = "127.0.0.1:0"
+	}
+	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		panic(err)
 	}

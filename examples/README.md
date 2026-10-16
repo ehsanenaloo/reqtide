@@ -1,6 +1,6 @@
 # Examples
 
-Eleven small scripts that use the real public API of the core package, with its process-local, in-memory state. Examples 01 to 05 are annotated and check their own behaviour with explicit assertions; 06 to 11 are self-contained and are the source of every code and output block in [`docs/`](../docs/README.md) and in the README. All of them exit non-zero on anything unexpected, so they double as smoke tests.
+Twelve small scripts that use the real public API of the core package, with its process-local, in-memory state. Examples 01 to 05 are annotated and check their own behaviour with explicit assertions; 06 to 12 are self-contained and are the source of every code and output block in [`docs/`](../docs/README.md) and in the README. All of them exit non-zero on anything unexpected, so they double as smoke tests.
 
 > **Status: beta (version 0.x).** These examples run from this repository. The Redis and Guzzle packages are separate packages with their own examples; nothing here uses them.
 
@@ -27,6 +27,7 @@ Eleven small scripts that use the real public API of the core package, with its 
 | [`09-choosing-policies.php`](09-choosing-policies.php) | [the choosing-policies guide](https://enaloo.com/apps/reqtide/docs/choosing-policies/): one small pipeline per protection (rate limit algorithms, bulkhead, circuit windows, Retry-After and cooldown, fallback scopes, deadline). |
 | [`10-concepts.php`](10-concepts.php) | [the concepts guide](https://enaloo.com/apps/reqtide/docs/concepts/): `explain()`, one operation with several attempts, and the partition a context must match. |
 | [`11-rate-limit-charges.php`](11-rate-limit-charges.php) | [the rate-limiting guide](https://enaloo.com/apps/reqtide/docs/rate-limiting/): a retry is charged like a first attempt, and a cost above the capacity can never be admitted. |
+| [`12-fencing-downstream.php`](12-fencing-downstream.php) | [the fencing guide](https://enaloo.com/apps/reqtide/docs/fencing-downstream/): the store you write to refuses a write from a holder that was replaced. Needs the `pdo_sqlite` extension. |
 
 `support.php` is shared plumbing for examples 01 to 05 (`check()`, `say()`, the two example exception types, and the low-level helpers that only example 03 uses). `autoload.php` only locates Composer's autoloader and is used by every script. Neither is part of the API. Examples 06 to 11 do not use `support.php`; in your own project the `autoload.php` line becomes `require __DIR__ . '/vendor/autoload.php';`.
 
